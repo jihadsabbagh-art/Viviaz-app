@@ -1,177 +1,516 @@
-from http.server import BaseHTTPRequestHandler
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-import json, io
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Viviaz — Project Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23111'/><text x='16' y='23' text-anchor='middle' font-size='20' font-weight='bold' fill='%23fff'>V</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#FAFAFA;font-family:'Inter',sans-serif;color:#111}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#D4D4D4;border-radius:3px}
+.header{background:#fff;border-bottom:1px solid #E5E5E5;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:28px;height:28px;border-radius:6px;background:#111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
+.logo-text{font-size:15px;font-weight:700;color:#111;letter-spacing:-.3px}
+.sync-dot{width:8px;height:8px;border-radius:8px;margin-left:4px}
+.tabs{background:#fff;padding:6px 28px;display:flex;gap:2px;border-bottom:1px solid #E5E5E5;overflow-x:auto}
+.tab{background:transparent;color:#737373;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
+.tab:hover{background:#F5F5F5;color:#111}
+.tab.active{background:#111;color:#fff}
+.tab-count{margin-left:5px;font-size:10px;opacity:.6}
+.content{padding:24px 28px;max-width:1360px;margin:0 auto}
+.kpi-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
+.kpi{background:#fff;border:1px solid #E5E5E5;border-radius:10px;padding:16px 20px;flex:1;min-width:130}
+.kpi-label{color:#737373;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-value{font-size:20px;font-weight:700;color:#111}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap}
+.badge-green{background:#DCFCE7;color:#166534}
+.badge-red{background:#FEE2E2;color:#991B1B}
+.badge-orange{background:#FEF3C7;color:#92400E}
+.badge-blue{background:#DBEAFE;color:#1E40AF}
+.badge-gray{background:#F3F4F6;color:#374151}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:10px 12px;color:#737373;font-weight:500;font-size:11px;text-align:left;border-bottom:1px solid #E5E5E5;text-transform:uppercase;letter-spacing:.3px}
+td{padding:10px 12px;border-bottom:1px solid #F5F5F5}
+tbody tr:hover{background:#FAFAFA}
+tfoot td{background:#F9FAFB;font-weight:600;border-top:2px solid #E5E5E5}
+.btn{border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn-primary{background:#111;color:#fff}
+.btn-primary:hover{background:#333}
+.btn-ghost{background:transparent;color:#737373;border:1px solid #E5E5E5}
+.btn-ghost:hover{background:#F5F5F5;color:#111}
+.btn-danger{background:#FEE2E2;color:#991B1B}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+.modal{background:#fff;border-radius:12px;padding:28px;width:520px;max-width:95vw;max-height:85vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.modal.wide{width:1000px}
+.modal-title{font-size:16px;font-weight:700;color:#111;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-4{grid-template-columns:repeat(4,1fr)}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.span-2{grid-column:1/3}
+.form-label{color:#737373;font-size:11px;font-weight:500}
+.form-input{border:1px solid #E5E5E5;color:#111;border-radius:6px;padding:8px 10px;font-size:13px;width:100%;outline:none;font-family:inherit;background:#fff;transition:border-color .15s}
+.form-input:focus{border-color:#111}
+select.form-input{cursor:pointer}
+.alert-box{border:1px solid #FCA5A5;border-radius:8px;padding:12px 16px;margin-bottom:16px;background:#FEF2F2}
+.alert-title{color:#991B1B;font-weight:600;font-size:12px;margin-bottom:4px}
+.alert-item{color:#B91C1C;font-size:12px;padding:1px 0}
+.dropdown{position:absolute;right:0;top:40px;background:#fff;border:1px solid #E5E5E5;border-radius:10px;min-width:260px;max-height:400px;overflow:auto;z-index:200;box-shadow:0 10px 40px rgba(0,0,0,.12)}
+.dropdown-header{padding:10px 14px;border-bottom:1px solid #F5F5F5;color:#111;font-weight:600;font-size:12px}
+.dropdown-item{display:flex;gap:8px;align-items:flex-start;padding:8px 14px;font-size:12px;color:#525252;border-bottom:1px solid #FAFAFA}
+.dropdown-btn{width:100%;text-align:left;background:none;border:none;color:#525252;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit;border-radius:4px}
+.dropdown-btn:hover{background:#F5F5F5;color:#111}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.card{background:#fff;border-radius:10px;border:1px solid #E5E5E5;padding:18px;cursor:pointer;transition:all .15s}
+.card:hover{border-color:#A3A3A3;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.progress-bar{height:4px;background:#E5E5E5;border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:#111;border-radius:2px;transition:width .3s}
+.task-item{background:#fff;border:1px solid #E5E5E5;border-radius:8px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s}
+.task-item:hover{border-color:#A3A3A3}
+.task-item.overdue{border-color:#FCA5A5;background:#FFFBFB}
+.task-item.done{opacity:.45}
+.task-check{width:18px;height:18px;border-radius:18px;border:2px solid #D4D4D4;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.task-check.checked{border-color:#16A34A;background:#16A34A;color:#fff}
+.filter-select{border:1px solid #E5E5E5;color:#111;border-radius:6px;padding:6px 10px;font-size:12px;font-family:inherit;background:#fff}
+.flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.text-right{text-align:right}
+.loading{display:flex;align-items:center;justify-content:center;min-height:60vh;color:#A3A3A3;font-size:14px}
+@media(max-width:768px){.kpi-row{flex-direction:column}.form-grid,.form-grid-4{grid-template-columns:1fr}.card-grid{grid-template-columns:1fr}.modal{padding:16px}.content{padding:16px}.header{padding:14px 16px}.tabs{padding:6px 16px}}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading Viviaz...</div></div>
 
-CO = {'addr':'Zollergasse 9/26, 1070, Vienna - Austria','email':'viviane.zahra@zahra-interiors.com','phone':'+ 43 (0) 67682337441','vat':'ATU77022918','eori':'ATEOS1000136890','bank':'Raiffeisen Bank /  Vienna - Austria','iban':'AT47 3200 0000 1348 4274','bic':'RLNWATWW','owner':'Viviane Zahra','name':'Zahra Interiors'}
-C0 = {'d':'404040','m':'606060','l':'999999','v':'CCCCCC','bg':'F7F7F7','w':'FFFFFF','h':'4A4A4A'}
-TN = Side(style='thin', color=C0['v'])
-MD = Side(style='medium', color=C0['d'])
-BT = Border(top=TN, bottom=TN, left=TN, right=TN)
-BH = Border(top=MD, bottom=MD, left=TN, right=TN)
-BM = Border(top=MD)
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- SheetJS for Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
-def F(sz=9,b=False,c='d',n='Calibri Light'):
-    return Font(name=n,size=sz,bold=b,color=C0.get(c,c))
+<script>
+// ═══════════════════════════════════════════════════════
+// FIREBASE INIT
+// ═══════════════════════════════════════════════════════
+firebase.initializeApp({
+  apiKey: "AIzaSyASwy5xt_p5GjVn9rfHKrpkKX6m1eCxfXU",
+  authDomain: "viviazapp.firebaseapp.com",
+  projectId: "viviazapp",
+  storageBucket: "viviazapp.firebasestorage.app",
+  messagingSenderId: "928360791444",
+  appId: "1:928360791444:web:e72ad7b779580f6fdb2381"
+});
+const db = firebase.firestore();
 
-def gen(data):
-    wb=Workbook();ws=wb.active
-    dt=data.get('docType','Invoice');ws.title=dt
-    cur=data.get('currency','€')
-    cf='#,##0.00 "€"' if cur=='€' else '"$" #,##0.00'
-    ws.page_setup.paperSize=ws.PAPERSIZE_A4;ws.page_setup.orientation='portrait'
-    ws.page_setup.fitToWidth=1;ws.page_setup.fitToHeight=1
-    ws.sheet_properties.pageSetUpPr.fitToPage=True
-    ws.page_margins.left=0.55;ws.page_margins.right=0.55;ws.page_margins.top=0.4;ws.page_margins.bottom=0.4
-    for i,w in enumerate([15,36,4,4,8,15,5,15]):
-        ws.column_dimensions[get_column_letter(i+1)].width=w
+// ═══════════════════════════════════════════════════════
+// DEFAULT DATA (used only on very first load when DB is empty)
+// ═══════════════════════════════════════════════════════
+const DEFAULTS={
+projects:[
+  {id:"PRJ-001",name:"Telegraf- Vienna",client:"Mr. & Mrs. Petchnikar",email:"",phone:"",status:"Active",type:"Residential",startDate:"2024-04-01",endDate:"2026-10-30",designer:"Viviane Z",phase:"Technical Drawings",priority:"Medium"},
+  {id:"PRJ-002",name:"Landmark-Cyprus",client:"Habanos",email:"",phone:"",status:"Active",type:"Retail",startDate:"2025-10-01",endDate:"2026-03-30",designer:"Viviane Z",phase:"Construction",priority:"High"},
+  {id:"PRJ-003",name:"Amanos-Cyrpus",client:"Habanos",email:"",phone:"",status:"Active",type:"Hospitality",startDate:"2026-01-10",endDate:"2026-05-30",designer:"Viviane Z",phase:"Technical Drawings",priority:"High"},
+  {id:"PRJ-004",name:"Villa Nawfal-Lebanon",client:"Amin & Lara Nawfal",email:"",phone:"",status:"Active",type:"Residential",startDate:"2025-07-01",endDate:"2026-10-30",designer:"Viviane Z",phase:"Design Development",priority:"High"},
+  {id:"PRJ-005",name:"Beirut Duty Free",client:"Abdel Majid Loutfi",email:"",phone:"",status:"Active",type:"Retail",startDate:"2025-04-01",endDate:"2026-03-20",designer:"Viviane Z",phase:"Construction",priority:"Medium"},
+  {id:"PRJ-006",name:"Caffe Najjar",client:"Alain Dibo",email:"",phone:"",status:"Planning",type:"Hospitality",startDate:"2026-03-01",endDate:"2026-06-30",designer:"Viviane Z",phase:"Briefing",priority:"Low"},
+  {id:"PRJ-007",name:"Cigar Lounge-Qatar Airport",client:"Hisham",email:"",phone:"",status:"On Hold",type:"Hospitality",startDate:"",endDate:"",designer:"Viviane Z",phase:"Briefing",priority:"Low"},
+  {id:"PRJ-008",name:"Zougheib And Sons",client:"Farid",email:"",phone:"",status:"Active",type:"Retail",startDate:"2026-01-01",endDate:"2026-03-30",designer:"Viviane Z",phase:"Technical Drawings",priority:"High"}
+],
+revenue:[
+  {id:"R-001",project:"Telegraf- Vienna",quotationNum:"QUO-001",quoteDate:"2024-04-01",totalQuoted:75000,depositInv:"INV-D01",depositDate:"2024-04-15",depositAmt:25000,depositStatus:"Received",secondInv:"INV-M01",secondDate:"2025-11-01",secondAmt:25000,secondStatus:"Received",finalInv:"INV-F01",finalDate:"",finalAmt:25000,finalStatus:"Not Received"},
+  {id:"R-002",project:"Landmark-Cyprus",quotationNum:"QUO-002",quoteDate:"2025-01-25",totalQuoted:20000,depositInv:"INV-D02",depositDate:"2025-02-01",depositAmt:5000,depositStatus:"Received",secondInv:"INV-M02",secondDate:"2025-05-01",secondAmt:10000,secondStatus:"Not Received",finalInv:"INV-F02",finalDate:"",finalAmt:5000,finalStatus:"Not Received"},
+  {id:"R-003",project:"Amanos-Cyrpus",quotationNum:"QUO-003",quoteDate:"2025-03-01",totalQuoted:35000,depositInv:"INV-D03",depositDate:"2025-03-15",depositAmt:15000,depositStatus:"Not Received",secondInv:"INV-M03",secondDate:"",secondAmt:10000,secondStatus:"Not Received",finalInv:"INV-F03",finalDate:"",finalAmt:10000,finalStatus:"Not Received"},
+  {id:"R-004",project:"Villa Nawfal-Lebanon",quotationNum:"QUO-004",quoteDate:"2024-10-15",totalQuoted:25000,depositInv:"INV-D04",depositDate:"2024-11-01",depositAmt:10000,depositStatus:"Received",secondInv:"INV-M04",secondDate:"2025-02-01",secondAmt:10000,secondStatus:"Received",finalInv:"INV-F04",finalDate:"2025-04-01",finalAmt:5000,finalStatus:"Received"},
+  {id:"R-005",project:"Beirut Duty Free",quotationNum:"QUO-005",quoteDate:"2025-03-20",totalQuoted:10000,depositInv:"INV-D05",depositDate:"",depositAmt:5000,depositStatus:"Not Received",secondInv:"INV-M05",secondDate:"",secondAmt:2500,secondStatus:"Not Received",finalInv:"INV-F05",finalDate:"",finalAmt:2500,finalStatus:"Not Received"},
+  {id:"R-006",project:"Caffe Najjar",quotationNum:"",quoteDate:"",totalQuoted:0,depositInv:"",depositDate:"",depositAmt:0,depositStatus:"Not Received",secondInv:"",secondDate:"",secondAmt:0,secondStatus:"Not Received",finalInv:"",finalDate:"",finalAmt:0,finalStatus:"Not Received"},
+  {id:"R-007",project:"Cigar Lounge-Qatar Airport",quotationNum:"",quoteDate:"",totalQuoted:0,depositInv:"",depositDate:"",depositAmt:0,depositStatus:"Not Received",secondInv:"",secondDate:"",secondAmt:0,secondStatus:"Not Received",finalInv:"",finalDate:"",finalAmt:0,finalStatus:"Not Received"},
+  {id:"R-008",project:"Zougheib And Sons",quotationNum:"QUO-008",quoteDate:"2026-01-01",totalQuoted:13000,depositInv:"INV-D08",depositDate:"2026-01-15",depositAmt:5000,depositStatus:"Received",secondInv:"",secondDate:"",secondAmt:4000,secondStatus:"Not Received",finalInv:"",finalDate:"",finalAmt:4000,finalStatus:"Not Received"}
+],
+expenses:[
+  {id:"E-001",project:"Telegraf- Vienna",category:"Materials & FF&E",description:"B&B Italia Sofa",supplier:"B&B Italia Vienna",date:"2025-03-10",netAmount:2500,vat:450,paid:"Yes"},
+  {id:"E-002",project:"Telegraf- Vienna",category:"Materials & FF&E",description:"Boen oak parquet",supplier:"Boen Austria",date:"2025-03-15",netAmount:8200,vat:1558,paid:"Yes"},
+  {id:"E-003",project:"Telegraf- Vienna",category:"External Consultant",description:"Structural engineer",supplier:"Ing. Fischer ZT",date:"2025-02-20",netAmount:1800,vat:342,paid:"Yes"},
+  {id:"E-004",project:"Telegraf- Vienna",category:"Travel & Site Visit",description:"Site visits x4",supplier:"—",date:"2025-03-28",netAmount:320,vat:0,paid:"Yes"},
+  {id:"E-005",project:"Landmark-Cyprus",category:"External Consultant",description:"Lighting designer",supplier:"Studio Lux",date:"2025-03-05",netAmount:4500,vat:855,paid:"Yes"},
+  {id:"E-006",project:"Landmark-Cyprus",category:"Materials & FF&E",description:"Reception desk deposit",supplier:"Tischlerei Mayer",date:"2025-03-20",netAmount:14000,vat:2660,paid:"Yes"},
+  {id:"E-007",project:"Landmark-Cyprus",category:"Travel & Site Visit",description:"Train x3",supplier:"ÖBB",date:"2025-03-22",netAmount:180,vat:0,paid:"Yes"},
+  {id:"E-008",project:"Amanos-Cyrpus",category:"Travel & Site Visit",description:"Flight + hotel",supplier:"Various",date:"2025-03-25",netAmount:640,vat:0,paid:"Yes"},
+  {id:"E-009",project:"Amanos-Cyrpus",category:"External Consultant",description:"3D renders",supplier:"Render Studio CZ",date:"2025-04-01",netAmount:2200,vat:418,paid:"No"},
+  {id:"E-010",project:"Villa Nawfal-Lebanon",category:"Materials & FF&E",description:"Encaustic tiles (overrun)",supplier:"Vives Ceramica",date:"2025-01-10",netAmount:26400,vat:5016,paid:"Yes"},
+  {id:"E-011",project:"Villa Nawfal-Lebanon",category:"External Consultant",description:"Acoustic consultant",supplier:"dB Consulting",date:"2025-02-14",netAmount:1200,vat:228,paid:"Yes"},
+  {id:"E-012",project:"Villa Nawfal-Lebanon",category:"Travel & Site Visit",description:"Flights + accom",supplier:"LOT/Airbnb",date:"2025-02-20",netAmount:890,vat:0,paid:"Yes"},
+  {id:"E-013",project:"Beirut Duty Free",category:"External Consultant",description:"BIM coordinator",supplier:"BIM Solutions AG",date:"2025-04-10",netAmount:3500,vat:665,paid:"No"}
+],
+tasks:[
+  {id:"T-001",project:"Telegraf- Vienna",description:"Send contractor payment certificate",category:"Finance",assigned:"Viviane Z",dueDate:"2025-03-10",status:"Done",priority:"High"},
+  {id:"T-002",project:"Telegraf- Vienna",description:"Order custom kitchen handles",category:"Procurement",assigned:"Viviane Z",dueDate:"2025-04-15",status:"In Progress",priority:"Medium"},
+  {id:"T-003",project:"Telegraf- Vienna",description:"Monthly site inspection",category:"Site Visit",assigned:"Viviane Z",dueDate:"2025-05-01",status:"To Do",priority:"High"},
+  {id:"T-004",project:"Telegraf- Vienna",description:"Confirm flooring delivery",category:"Coordination",assigned:"Viviane Z",dueDate:"2025-04-20",status:"To Do",priority:"Medium"},
+  {id:"T-005",project:"Landmark-Cyprus",description:"Present material samples",category:"Client Communication",assigned:"Viviane Z",dueDate:"2025-04-20",status:"To Do",priority:"High"},
+  {id:"T-006",project:"Landmark-Cyprus",description:"Submit planning drawings",category:"Legal",assigned:"Viviane Z",dueDate:"2025-04-30",status:"In Progress",priority:"High"},
+  {id:"T-007",project:"Landmark-Cyprus",description:"Confirm chandelier dimensions",category:"Coordination",assigned:"Viviane Z",dueDate:"2025-04-10",status:"Overdue",priority:"Medium"},
+  {id:"T-008",project:"Amanos-Cyrpus",description:"Revise concept boards",category:"Design",assigned:"Viviane Z",dueDate:"2025-04-18",status:"In Progress",priority:"High"},
+  {id:"T-009",project:"Amanos-Cyrpus",description:"Source Arabescato marble",category:"Procurement",assigned:"Viviane Z",dueDate:"2025-05-15",status:"To Do",priority:"Medium"},
+  {id:"T-010",project:"Villa Nawfal-Lebanon",description:"Final punch list walkthrough",category:"Site Visit",assigned:"Viviane Z",dueDate:"2025-04-25",status:"To Do",priority:"High"},
+  {id:"T-011",project:"Villa Nawfal-Lebanon",description:"Submit final invoice",category:"Finance",assigned:"Viviane Z",dueDate:"2025-04-30",status:"To Do",priority:"High"},
+  {id:"T-012",project:"Villa Nawfal-Lebanon",description:"Chase tile supplier",category:"Procurement",assigned:"Viviane Z",dueDate:"2025-04-05",status:"Done",priority:"High"},
+  {id:"T-013",project:"Beirut Duty Free",description:"Prepare kick-off agenda",category:"Admin",assigned:"Viviane Z",dueDate:"2025-04-05",status:"To Do",priority:"Medium"},
+  {id:"T-014",project:"Beirut Duty Free",description:"Request site access",category:"Coordination",assigned:"Viviane Z",dueDate:"2025-04-03",status:"To Do",priority:"Low"}
+]};
 
-    def W(row,col,val,font=None,fill=None,align=None,border=None,nf=None,mg=None):
-        c=ws.cell(row=row,column=col,value=val)
-        if font:c.font=font
-        if fill:c.fill=fill
-        if align:c.alignment=align
-        if border:c.border=border
-        if nf:c.number_format=nf
-        if mg:ws.merge_cells(start_row=row,start_column=col,end_row=row,end_column=mg)
+const LISTS={statuses:["Active","Planning","On Hold","Completed","Cancelled"],types:["Residential","Commercial","F&B","Hospitality","Retail","Office","Other"],phases:["Briefing","Concept","Schematic Design","Design Development","FF&E","Technical Drawings","Construction","Handover"],priorities:["High","Medium","Low"],payStatuses:["Not Received","Received","Partial","Waived"],expCats:["Materials & FF&E","External Consultant","Travel & Site Visit","Other"],taskStatuses:["To Do","In Progress","Done","Overdue","On Hold"],taskCats:["Client Communication","Design","Procurement","Site Visit","Admin","Finance","Legal","Coordination"],paid:["Yes","No","Partial"]};
 
-    r=2
-    W(r,1,dt,F(18,True));ws.row_dimensions[r].height=28
-    r=3
-    for c in range(1,9):W(r,c,None,border=BM)
-    ws.row_dimensions[r].height=4
+// ═══════════════════════════════════════════════════════
+// STATE & FIREBASE SYNC
+// ═══════════════════════════════════════════════════════
+let state={projects:[],revenue:[],expenses:[],tasks:[],documents:[],tab:'dashboard',modal:null,editItem:null,filterProject:'',notifOpen:false,exportOpen:false,synced:false};
 
-    r=4
-    info=[]
-    info.append((dt+' Nr.' if dt=='Invoice' else 'Quotation #',data.get('docNumber','')))
-    info.append(('Date',data.get('date','')))
-    info.append(('VAT Nr.',CO['vat']))
-    if data.get('clientVat'):info.append(('Client VAT Nr.',data['clientVat']))
-    info.append(('EORI #',CO['eori']))
-    if data.get('workStart'):info.append(('Work Starting Date',data['workStart']))
-    if data.get('workEnd'):info.append(('Work Compl. Date',data['workEnd']))
-    for i,(l,v) in enumerate(info):
-        W(r+i,6,l,F(8,False,'m'),align=Alignment(horizontal='right'))
-        W(r+i,8,v,F(8,False,'d'))
-        ws.row_dimensions[r+i].height=13
+// Save a single collection to Firestore
+async function fbSave(col, items) {
+  const batch = db.batch();
+  // We store the entire collection as individual docs by id
+  for (const item of items) {
+    const docId = item.id || item.project; // revenue uses project as key
+    batch.set(db.collection(col).doc(String(docId)), item);
+  }
+  await batch.commit();
+}
 
-    W(r,1,'Client:',F(9,False,'m'))
-    W(r+1,1,data.get('clientName',''),F(11,True,'d','Arial'),mg=4)
-    ws.row_dimensions[r+1].height=18
-    addr=[l for l in(data.get('clientAddress','')or'').replace('\\n','\n').split('\n')if l.strip()]
-    for i,line in enumerate(addr):
-        W(r+2+i,1,line,F(9,False,'l'),mg=4)
-        ws.row_dimensions[r+2+i].height=13
+// Delete a doc from Firestore
+async function fbDelete(col, docId) {
+  await db.collection(col).doc(String(docId)).delete();
+}
 
-    r=max(r+2+len(addr),r+len(info))+1
-    W(r,1,'Project:',F(10,False,'m'))
-    r+=1
-    W(r,1,data.get('projectName',''),F(11,True,'d'),mg=5)
-    ws.row_dimensions[r].height=18
-    if data.get('location'):
-        r+=1;W(r,1,'Location: '+data['location'],F(9,False,'m'),mg=8)
-    r+=2
+// Seed defaults if DB is empty
+async function seedIfEmpty() {
+  const snap = await db.collection('projects').limit(1).get();
+  if (snap.empty) {
+    console.log('Seeding default data...');
+    for (const col of ['projects','revenue','expenses','tasks']) {
+      const batch = db.batch();
+      for (const item of DEFAULTS[col]) {
+        const docId = item.id || item.project;
+        batch.set(db.collection(col).doc(String(docId)), item);
+      }
+      await batch.commit();
+    }
+  }
+}
 
-    items=data.get('items',[]);scope=[l for l in(data.get('scopeLines')or[])if isinstance(l,str)]
+// Listen for real-time updates
+function listenAll() {
+  const cols = ['projects','revenue','expenses','tasks','documents'];
+  cols.forEach(col => {
+    db.collection(col).onSnapshot(snap => {
+      state[col] = snap.docs.map(d => {
+        const data = d.data();
+        // Ensure numeric fields stay numeric
+        if (col === 'revenue') { data.totalQuoted = Number(data.totalQuoted)||0; data.depositAmt = Number(data.depositAmt)||0; data.secondAmt = Number(data.secondAmt)||0; data.finalAmt = Number(data.finalAmt)||0; }
+        if (col === 'expenses') { data.netAmount = Number(data.netAmount)||0; data.vat = Number(data.vat)||0; }
+        return data;
+      });
+      state.synced = true;
+      render();
+    });
+  });
+}
 
-    if items and len(items)>0:
-        hf=F(9,True,'w');hfi=PatternFill('solid',fgColor=C0['h'])
-        ha=Alignment(horizontal='center',vertical='center')
-        for c,h in enumerate(['Item Number','Item Description','','','Qty','Unit Price','','Total'],1):
-            al=ha if c>=5 else Alignment(horizontal='left',vertical='center')
-            W(r,c,h,hf,hfi,al,BH)
-        ws.merge_cells(start_row=r,start_column=2,end_row=r,end_column=4)
-        ws.row_dimensions[r].height=22;r+=1
-        af=PatternFill('solid',fgColor=C0['bg']);wf=PatternFill('solid',fgColor=C0['w'])
-        ra=Alignment(horizontal='right');ca=Alignment(horizontal='center')
-        for idx,item in enumerate(items):
-            fl=af if idx%2==1 else wf
-            W(r,1,item.get('itemNumber',''),F(9,False,'d'),fl,border=BT)
-            W(r,2,item.get('description',''),F(9,False,'d'),fl,border=BT,mg=4)
-            for cc in range(3,5):W(r,cc,None,fill=fl,border=BT)
-            W(r,5,item.get('qty',0),F(9,False,'d'),fl,ca,BT)
-            W(r,6,item.get('price',0),F(9,False,'d'),fl,ra,BT,cf)
-            W(r,7,None,fill=fl,border=BT)
-            tv=(item.get('qty',0)or 0)*(item.get('price',0)or 0)
-            W(r,8,tv,F(9,False,'d'),fl,ra,BT,cf)
-            ws.row_dimensions[r].height=18;r+=1
-        r+=1
-    elif scope and len(scope)>0:
-        W(r,1,'Scope Of Work',F(10,True,'d'),mg=8);r+=1
-        for c in range(1,9):W(r,c,None,border=Border(top=TN))
-        ws.row_dimensions[r].height=4;r+=1
-        for line in scope:
-            ip=line.strip().lower().startswith('phase')or line.strip().startswith('##')
-            cl=line.replace('##','').strip()
-            if ip:r+=1;W(r,1,cl,F(10,True,'d'),mg=8)
-            elif cl:W(r,1,cl,F(9,False,'m'),mg=8)
-            ws.row_dimensions[r].height=15;r+=1
-        r+=1
+// Init
+(async () => { await seedIfEmpty(); listenAll(); })();
 
-    te=data.get('totalExclVat',0)or 0;vp=data.get('vatPercent',0)or 0
-    va=te*vp/100;gr=te+va
-    for c in range(5,9):W(r,c,None,border=BM)
-    ws.row_dimensions[r].height=4;r+=1
-    W(r,5,'Total excl. VAT',F(10,False,'d'),mg=7)
-    W(r,8,te,F(10,True,'d'),align=Alignment(horizontal='right'),nf=cf)
-    ws.row_dimensions[r].height=20;r+=1
-    vl=f'VAT ({vp}%)' if vp>0 else 'VAT reverse charge'
-    W(r,5,vl,F(9,False,'m'),mg=7)
-    W(r,8,va,F(9,False,'m'),align=Alignment(horizontal='right'),nf=cf)
-    ws.row_dimensions[r].height=18;r+=1
-    gf=F(11,True,'d')
-    for c in range(5,9):W(r,c,None,border=Border(top=MD))
-    W(r,5,'Total Amount',gf,align=Alignment(vertical='center'),mg=7,border=Border(top=MD,bottom=MD))
-    W(r,8,gr,gf,align=Alignment(horizontal='right',vertical='center'),nf=cf,border=Border(top=MD,bottom=MD))
-    ws.row_dimensions[r].height=24;r+=2
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+const fmt=n=>n==null?'€0':'€'+Math.round(n).toLocaleString();
+const pct=n=>n==null||isNaN(n)?'0%':(n*100).toFixed(1)+'%';
+const daysLeft=d=>{if(!d)return null;return Math.ceil((new Date(d)-new Date())/864e5)};
+const esc=s=>(s||'').toString().replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const rcvd=r=>((r.depositStatus==='Received'||r.depositStatus==='Partial'?r.depositAmt:0)+(r.secondStatus==='Received'||r.secondStatus==='Partial'?r.secondAmt:0)+(r.finalStatus==='Received'||r.finalStatus==='Partial'?r.finalAmt:0))||0;
 
-    pt=data.get('paymentTerms',[])
-    if pt and len(pt)>0:
-        W(r,1,'Payments As Follows:',F(10,False,'d'),mg=5);r+=1
-        for t in pt:
-            if isinstance(t,str)and t.strip():
-                W(r,1,'  '+t.strip(),F(9,False,'m'),mg=5)
-                ws.row_dimensions[r].height=14;r+=1
-        r+=1
+function badge(text){
+  const m={Active:'green',Planning:'blue','On Hold':'orange',Completed:'gray',Cancelled:'gray',Done:'green','In Progress':'blue','To Do':'gray',Overdue:'red','Not Started':'gray',Delayed:'red',Received:'green','Not Received':'red',Partial:'orange',Waived:'gray',Yes:'green',No:'red',High:'red',Medium:'orange',Low:'green',Invoice:'blue',Quotation:'orange'};
+  return '<span class="badge badge-'+(m[text]||'gray')+'">'+esc(text)+'</span>';
+}
 
-    r+=1
-    sb=Border(bottom=Side(style='thin',color=C0['d']))
-    for c in range(1,4):W(r,c,None,border=sb)
-    for c in range(5,9):W(r,c,None,border=sb)
-    ws.row_dimensions[r].height=28;r+=1
-    W(r,1,CO['owner'],F(9,False,'d'),mg=3)
-    W(r,5,'Client Date & Signature',F(9,False,'l'),mg=8)
-    r+=1;W(r,1,CO['name'],F(8,False,'l'),mg=3)
+function getPnl(){
+  return state.projects.map(p=>{
+    const rev=state.revenue.find(r=>r.project===p.name)||{};
+    const q=rev.totalQuoted||0;const rc=rcvd(rev);
+    const pe=state.expenses.filter(e=>e.project===p.name);
+    const te=pe.reduce((a,e)=>a+e.netAmount,0);
+    const me=pe.filter(e=>e.category==='Materials & FF&E').reduce((a,e)=>a+e.netAmount,0);
+    const ce=pe.filter(e=>e.category==='External Consultant').reduce((a,e)=>a+e.netAmount,0);
+    const ve=pe.filter(e=>e.category==='Travel & Site Visit').reduce((a,e)=>a+e.netAmount,0);
+    const op=q-te;const opPct=q?op/q:0;const out=q-rc;
+    const td=state.tasks.filter(t=>t.project===p.name&&t.status==='Done').length;
+    const tt=state.tasks.filter(t=>t.project===p.name).length;
+    return{...p,quoted:q,received:rc,totalExp:te,matExp:me,conExp:ce,trvExp:ve,op,opPct,outstanding:out,pctComplete:tt?td/tt:0,tasksDone:td,tasksTotal:tt,daysLeft:daysLeft(p.endDate)};
+  });
+}
 
-    fs=max(r+3,52)
-    for c in range(1,9):W(fs,c,None,border=Border(top=Side(style='thin',color=C0['v'])))
-    ff=F(7.5,False,'l');fa=Alignment(horizontal='center',vertical='center')
-    fl=[CO['addr'],f"e-mail: {CO['email']}        Tel. {CO['phone']}",f"VAT# {CO['vat']}                EORI# {CO['eori']}",f"{CO['bank']}      IBAN: {CO['iban']}      BIC: {CO['bic']}"]
-    for i,line in enumerate(fl):
-        row=fs+1+i;W(row,1,line,ff,align=fa,mg=8);ws.row_dimensions[row].height=11
-    ws.print_area=f'A1:H{fs+len(fl)+1}'
+function getNotifs(){
+  const n=[];
+  state.tasks.forEach(t=>{if(t.status==='Done')return;const dl=daysLeft(t.dueDate);if(dl===null)return;if(dl<0)n.push({type:'overdue',text:t.description+' ('+t.project+') — '+Math.abs(dl)+'d overdue'});else if(dl<=7)n.push({type:'soon',text:t.description+' ('+t.project+') — due in '+dl+'d'});});
+  state.projects.forEach(p=>{if(p.status!=='Active'||!p.endDate)return;const dl=daysLeft(p.endDate);if(dl!==null&&dl<0)n.push({type:'overdue',text:p.name+' deadline passed '+Math.abs(dl)+'d ago'});else if(dl!==null&&dl<=30)n.push({type:'soon',text:p.name+' deadline in '+dl+'d'});});
+  state.revenue.forEach(r=>{if(r.totalQuoted>0){const rc=[r.depositStatus,r.secondStatus,r.finalStatus].filter(s=>s==='Received').length;const tot=[r.depositAmt,r.secondAmt,r.finalAmt].filter(a=>a>0).length;if(rc<tot)n.push({type:'payment',text:r.project+' — '+(tot-rc)+' payment(s) outstanding'})}});
+  return n.sort((a,b)=>a.type==='overdue'?-1:1);
+}
 
-    buf=io.BytesIO();wb.save(buf);buf.seek(0)
-    return buf.getvalue()
+// Excel export
+function doExport(pf){
+  const wb=XLSX.utils.book_new();const p=getPnl();
+  const fp=pf?p.filter(x=>x.name===pf):p;
+  const fr=pf?state.revenue.filter(x=>x.project===pf):state.revenue;
+  const fe=pf?state.expenses.filter(x=>x.project===pf):state.expenses;
+  const ft=pf?state.tasks.filter(x=>x.project===pf):state.tasks;
+  const s1=XLSX.utils.json_to_sheet(fp.map(x=>({"Project":x.name,"Client":x.client,"Status":x.status,"Phase":x.phase,"Priority":x.priority,"Total Quoted":x.quoted,"Total Received":x.received,"Materials":x.matExp,"Consultants":x.conExp,"Travel":x.trvExp,"Total Expenses":x.totalExp,"Operating Profit":x.op,"OP Margin %":+(x.opPct*100).toFixed(1),"Outstanding":x.outstanding})));
+  s1["!cols"]=[{wch:28},{wch:22},{wch:10},{wch:18},{wch:8},{wch:14},{wch:14},{wch:12},{wch:12},{wch:10},{wch:14},{wch:16},{wch:10},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,s1,"P&L Summary");
+  const s2=XLSX.utils.json_to_sheet(fr.map(r=>({"Project":r.project,"Quotation #":r.quotationNum,"Total Quoted":r.totalQuoted,"Deposit":r.depositAmt,"Deposit Status":r.depositStatus,"2nd Pmt":r.secondAmt,"2nd Pmt Status":r.secondStatus,"Final":r.finalAmt,"Final Status":r.finalStatus,"Total Received":rcvd(r),"Outstanding":(r.totalQuoted||0)-rcvd(r)})));
+  XLSX.utils.book_append_sheet(wb,s2,"Revenue");
+  const s3=XLSX.utils.json_to_sheet(fe.map(e=>({"Project":e.project,"Category":e.category,"Description":e.description,"Supplier":e.supplier,"Date":e.date,"Net Amount":e.netAmount,"VAT":e.vat,"Total":e.netAmount+e.vat,"Paid":e.paid})));
+  XLSX.utils.book_append_sheet(wb,s3,"Expenses");
+  const s4=XLSX.utils.json_to_sheet(ft.map(t=>({"Project":t.project,"Description":t.description,"Category":t.category,"Assigned":t.assigned,"Due Date":t.dueDate,"Status":t.status,"Priority":t.priority})));
+  XLSX.utils.book_append_sheet(wb,s4,"Tasks");
+  XLSX.writeFile(wb,pf?'Viviaz_'+pf.replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx':'Viviaz_Full_Report.xlsx');
+}
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        body=self.rfile.read(int(self.headers.get('Content-Length',0)))
-        data=json.loads(body)
-        xls=gen(data)
-        fn=data.get('docNumber','doc')+'.xlsx'
-        self.send_response(200)
-        self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        self.send_header('Content-Disposition',f'attachment; filename="{fn}"')
-        self.send_header('Access-Control-Allow-Origin','*')
-        self.send_header('Access-Control-Allow-Methods','POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers','Content-Type')
-        self.end_headers()
-        self.wfile.write(xls)
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin','*')
-        self.send_header('Access-Control-Allow-Methods','POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers','Content-Type')
-        self.end_headers()
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
+function render(){
+  if(!state.synced){document.getElementById('app').innerHTML='<div class="loading">Connecting to Viviaz Cloud...</div>';return}
+  const pnl=getPnl();const notifs=getNotifs();const odc=notifs.filter(n=>n.type==='overdue').length;
+  const tot={quoted:pnl.reduce((a,p)=>a+p.quoted,0),received:pnl.reduce((a,p)=>a+p.received,0),totalExp:pnl.reduce((a,p)=>a+p.totalExp,0),op:pnl.reduce((a,p)=>a+p.op,0),outstanding:pnl.reduce((a,p)=>a+p.outstanding,0)};
+  const pNames=state.projects.map(p=>p.name);
+  const fExp=state.filterProject?state.expenses.filter(e=>e.project===state.filterProject):state.expenses;
+  const fTasks=state.filterProject?state.tasks.filter(t=>t.project===state.filterProject):state.tasks;
+
+  let h=`<div class="header"><div class="logo"><div class="logo-mark">V</div><span class="logo-text">VIVIAZ</span><div class="sync-dot" style="background:#16A34A" title="Cloud synced"></div></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="position:relative"><button class="btn btn-ghost" onclick="state.exportOpen=!state.exportOpen;state.notifOpen=false;render()">↓ Export</button>
+        ${state.exportOpen?`<div class="dropdown"><div class="dropdown-header">Export to Excel</div><button class="dropdown-btn" onclick="doExport(null);state.exportOpen=false;render()">All Projects — Full Report</button><div style="border-top:1px solid #F5F5F5;padding:4px 14px;color:#A3A3A3;font-size:10px;font-weight:600;margin-top:2px">By Project</div>${state.projects.map(p=>'<button class="dropdown-btn" onclick="doExport(\''+esc(p.name).replace(/'/g,"\\'")+'\');state.exportOpen=false;render()">'+esc(p.name)+'</button>').join('')}</div>`:''}
+      </div>
+      <div style="position:relative"><button class="btn ${odc?'btn-danger':'btn-ghost'}" onclick="state.notifOpen=!state.notifOpen;state.exportOpen=false;render()" style="min-width:32px">⚠ ${odc||''}</button>
+        ${state.notifOpen?`<div class="dropdown" style="width:340px"><div class="dropdown-header">Notifications (${notifs.length})</div>${notifs.length?notifs.map(n=>`<div class="dropdown-item"><span>${n.type==='overdue'?'🔴':n.type==='soon'?'🟡':'💰'}</span><span>${esc(n.text)}</span></div>`).join(''):'<div style="padding:14px;color:#A3A3A3;font-size:13px">All clear</div>'}</div>`:''}
+      </div>
+    </div>
+  </div>
+  <div class="tabs">${[['dashboard','Dashboard'],['projects','Projects',state.projects.length],['revenue','Revenue'],['expenses','Expenses',state.expenses.length],['pnl','P&L'],['tasks','Tasks',state.tasks.filter(t=>t.status!=='Done').length],['docs','Documents',state.documents?state.documents.length:0]].map(([k,l,c])=>'<button class="tab'+(state.tab===k?' active':'')+'" onclick="setTab(\''+k+'\')">'+l+(c!=null?'<span class="tab-count">'+c+'</span>':'')+'</button>').join('')}</div>
+  <div class="content">`;
+
+  if(state.tab==='dashboard'){
+    h+=`<div class="kpi-row">
+      <div class="kpi"><div class="kpi-label">Projects</div><div class="kpi-value">${state.projects.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Active</div><div class="kpi-value" style="color:#16A34A">${state.projects.filter(p=>p.status==='Active').length}</div></div>
+      <div class="kpi"><div class="kpi-label">Total Quoted</div><div class="kpi-value">${fmt(tot.quoted)}</div></div>
+      <div class="kpi"><div class="kpi-label">Received</div><div class="kpi-value" style="color:#16A34A">${fmt(tot.received)}</div></div>
+      <div class="kpi"><div class="kpi-label">Operating Profit</div><div class="kpi-value" style="color:${tot.op>=0?'#16A34A':'#DC2626'}">${fmt(tot.op)}</div></div>
+      <div class="kpi"><div class="kpi-label">OP Margin</div><div class="kpi-value">${pct(tot.quoted?tot.op/tot.quoted:0)}</div></div>
+      <div class="kpi"><div class="kpi-label">Outstanding</div><div class="kpi-value" style="color:#D97706">${fmt(tot.outstanding)}</div></div>
+    </div>`;
+    if(odc)h+=`<div class="alert-box"><div class="alert-title">⚠ Attention Required</div>${notifs.filter(n=>n.type==='overdue').map(n=>'<div class="alert-item">'+esc(n.text)+'</div>').join('')}</div>`;
+    h+=`<div style="overflow-x:auto"><table><thead><tr>${['Project','Client','Status','Phase','Progress','Quoted','Received','Expenses','OP','OP%','Outstanding','Days','Priority'].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
+    pnl.forEach(p=>{const dlc=p.daysLeft!=null&&p.daysLeft<0?'color:#DC2626':p.daysLeft!=null&&p.daysLeft<30?'color:#D97706':'color:#A3A3A3';
+      h+=`<tr onclick="editProject('${esc(p.id)}')" style="cursor:pointer"><td style="font-weight:600">${esc(p.name)}</td><td style="color:#737373">${esc(p.client)}</td><td>${badge(p.status)}</td><td style="color:#737373;font-size:12px">${esc(p.phase)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar" style="flex:1;min-width:40px"><div class="progress-fill" style="width:${p.pctComplete*100}%"></div></div><span style="font-size:11px;color:#A3A3A3">${Math.round(p.pctComplete*100)}%</span></div></td>
+      <td class="text-right">${fmt(p.quoted)}</td><td class="text-right" style="color:#16A34A">${fmt(p.received)}</td><td class="text-right">${fmt(p.totalExp)}</td>
+      <td class="text-right" style="font-weight:600;color:${p.op>=0?'#16A34A':'#DC2626'}">${fmt(p.op)}</td><td class="text-right" style="color:${p.opPct>=.2?'#16A34A':p.opPct<0?'#DC2626':'#D97706'}">${pct(p.opPct)}</td>
+      <td class="text-right" style="color:#D97706">${fmt(p.outstanding)}</td><td style="text-align:center;font-weight:600;${dlc}">${p.status==='Completed'?'✓':p.daysLeft!=null?p.daysLeft:'—'}</td><td>${badge(p.priority)}</td></tr>`;
+    });h+=`</tbody></table></div>`;
+  }
+
+  if(state.tab==='projects'){
+    h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Projects</h2><button class="btn btn-primary" onclick="addProject()">+ New Project</button></div><div class="card-grid">`;
+    state.projects.forEach(p=>{const pl=pnl.find(x=>x.id===p.id)||{};
+      h+=`<div class="card" onclick="editProject('${esc(p.id)}')"><div class="flex-between" style="margin-bottom:10px"><div><div style="font-weight:600;font-size:14px">${esc(p.name)}</div><div style="color:#737373;font-size:12px">${esc(p.client)}</div></div>${badge(p.status)}</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">${badge(p.priority)}<span style="font-size:10px;color:#737373;padding:2px 8px;background:#F5F5F5;border-radius:4px">${esc(p.phase)}</span></div>
+      <div class="flex-between" style="font-size:12px;color:#737373;margin-bottom:8px"><span>Quoted: <b style="color:#111">${fmt(pl.quoted)}</b></span><span>OP: <b style="color:${pl.op>=0?'#16A34A':'#DC2626'}">${fmt(pl.op)}</b></span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${(pl.pctComplete||0)*100}%"></div></div>
+      <div class="flex-between" style="font-size:10px;color:#A3A3A3;margin-top:4px"><span>${pl.tasksDone||0}/${pl.tasksTotal||0} tasks</span>${pl.daysLeft!=null?'<span style="color:'+(pl.daysLeft<0?'#DC2626':pl.daysLeft<30?'#D97706':'#A3A3A3')+'">'+(pl.daysLeft<0?Math.abs(pl.daysLeft)+'d overdue':pl.daysLeft+'d left')+'</span>':''}</div></div>`;
+    });h+=`</div>`;
+  }
+
+  if(state.tab==='revenue'){
+    h+=`<h2 style="font-size:17px;font-weight:700;margin-bottom:16px">Revenue & Payments</h2><div style="overflow-x:auto"><table><thead><tr>${['Project','Quoted','Deposit','Status','2nd Pmt','Status','Final','Status','Received','Outstanding','%',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
+    state.revenue.forEach((r,i)=>{const rc=rcvd(r);const out=(r.totalQuoted||0)-rc;const pc=r.totalQuoted?rc/r.totalQuoted:0;
+      h+=`<tr><td style="font-weight:600">${esc(r.project)}</td><td class="text-right">${fmt(r.totalQuoted)}</td><td class="text-right">${fmt(r.depositAmt)}</td><td>${badge(r.depositStatus)}</td><td class="text-right">${fmt(r.secondAmt)}</td><td>${badge(r.secondStatus)}</td><td class="text-right">${fmt(r.finalAmt)}</td><td>${badge(r.finalStatus)}</td><td class="text-right" style="color:#16A34A;font-weight:600">${fmt(rc)}</td><td class="text-right" style="color:#D97706;font-weight:600">${fmt(out)}</td><td><div class="progress-bar" style="width:50px"><div class="progress-fill" style="width:${pc*100}%"></div></div></td><td><button class="btn btn-ghost" onclick="editRevenue('${esc(r.id)}')">Edit</button></td></tr>`;
+    });h+=`</tbody></table></div>`;
+  }
+
+  if(state.tab==='expenses'){
+    h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Expenses</h2><div style="display:flex;gap:6px;align-items:center"><select class="filter-select" onchange="setFilter(this.value)"><option value="">All Projects</option>${pNames.map(n=>'<option value="'+esc(n)+'"'+(state.filterProject===n?' selected':'')+'>'+esc(n)+'</option>').join('')}</select><button class="btn btn-primary" onclick="addExpense()">+ Add Expense</button></div></div>
+    <div style="overflow-x:auto"><table><thead><tr>${['Project','Category','Description','Supplier','Date','Net','VAT','Total','Paid',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
+    fExp.forEach(e=>{h+=`<tr><td style="font-weight:500">${esc(e.project)}</td><td>${esc(e.category)}</td><td>${esc(e.description)}</td><td style="color:#737373">${esc(e.supplier)}</td><td style="color:#737373">${esc(e.date)}</td><td class="text-right">${fmt(e.netAmount)}</td><td class="text-right" style="color:#A3A3A3">${fmt(e.vat)}</td><td class="text-right" style="font-weight:600">${fmt(e.netAmount+e.vat)}</td><td>${badge(e.paid)}</td><td><button class="btn btn-ghost" onclick="editExpense('${esc(e.id)}')">Edit</button></td></tr>`});
+    const tN=fExp.reduce((a,e)=>a+e.netAmount,0);const tV=fExp.reduce((a,e)=>a+e.vat,0);
+    h+=`</tbody><tfoot><tr><td colspan="5">Total</td><td class="text-right">${fmt(tN)}</td><td class="text-right" style="color:#A3A3A3">${fmt(tV)}</td><td class="text-right">${fmt(tN+tV)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+  }
+
+  if(state.tab==='pnl'){
+    h+=`<h2 style="font-size:17px;font-weight:700;margin-bottom:16px">P&L Summary</h2><div style="overflow-x:auto"><table><thead><tr>${['Project','Client','Quoted','Received','Materials','Consultants','Travel','Total Exp','OP','OP%','Outstanding','Exp%'].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
+    pnl.forEach(p=>{h+=`<tr><td style="font-weight:600">${esc(p.name)}</td><td style="color:#737373">${esc(p.client)}</td><td class="text-right">${fmt(p.quoted)}</td><td class="text-right" style="color:#16A34A">${fmt(p.received)}</td><td class="text-right">${fmt(p.matExp)}</td><td class="text-right">${fmt(p.conExp)}</td><td class="text-right">${fmt(p.trvExp)}</td><td class="text-right" style="font-weight:600">${fmt(p.totalExp)}</td><td class="text-right" style="font-weight:700;color:${p.op>=0?'#16A34A':'#DC2626'}">${fmt(p.op)}</td><td class="text-right" style="color:${p.opPct>=.2?'#16A34A':p.opPct<0?'#DC2626':'#D97706'}">${pct(p.opPct)}</td><td class="text-right" style="color:#D97706;font-weight:600">${fmt(p.outstanding)}</td><td class="text-right" style="color:#A3A3A3">${p.quoted?pct(p.totalExp/p.quoted):'—'}</td></tr>`});
+    h+=`</tbody><tfoot><tr><td colspan="2">Grand Total</td><td class="text-right">${fmt(tot.quoted)}</td><td class="text-right" style="color:#16A34A">${fmt(tot.received)}</td><td class="text-right">${fmt(pnl.reduce((a,p)=>a+p.matExp,0))}</td><td class="text-right">${fmt(pnl.reduce((a,p)=>a+p.conExp,0))}</td><td class="text-right">${fmt(pnl.reduce((a,p)=>a+p.trvExp,0))}</td><td class="text-right">${fmt(tot.totalExp)}</td><td class="text-right" style="color:${tot.op>=0?'#16A34A':'#DC2626'}">${fmt(tot.op)}</td><td class="text-right">${pct(tot.quoted?tot.op/tot.quoted:0)}</td><td class="text-right" style="color:#D97706">${fmt(tot.outstanding)}</td><td class="text-right" style="color:#A3A3A3">${pct(tot.quoted?tot.totalExp/tot.quoted:0)}</td></tr></tfoot></table></div>`;
+  }
+
+  if(state.tab==='tasks'){
+    h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Tasks</h2><div style="display:flex;gap:6px;align-items:center"><select class="filter-select" onchange="setFilter(this.value)"><option value="">All Projects</option>${pNames.map(n=>'<option value="'+esc(n)+'"'+(state.filterProject===n?' selected':'')+'>'+esc(n)+'</option>').join('')}</select><button class="btn btn-primary" onclick="addTask()">+ Add Task</button></div></div><div style="display:grid;gap:6px">`;
+    [...fTasks].sort((a,b)=>a.status==='Done'?1:b.status==='Done'?-1:new Date(a.dueDate)-new Date(b.dueDate)).forEach(t=>{
+      const dl=daysLeft(t.dueDate);const od=t.status!=='Done'&&dl!==null&&dl<0;
+      h+=`<div class="task-item${od?' overdue':''}${t.status==='Done'?' done':''}" onclick="editTask('${esc(t.id)}')">
+        <div class="task-check${t.status==='Done'?' checked':''}">${t.status==='Done'?'✓':''}</div>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:#A3A3A3':''}">${esc(t.description)}</div>
+        <div style="font-size:11px;color:#A3A3A3;display:flex;gap:8px;margin-top:2px"><span style="color:#111;font-weight:500">${esc(t.project)}</span><span>${esc(t.category)}</span>${t.dueDate?'<span style="color:'+(od?'#DC2626':dl<=7?'#D97706':'#A3A3A3')+'">'+(od?Math.abs(dl)+'d overdue':dl<=7?dl+'d left':t.dueDate)+'</span>':''}</div></div>
+        <div style="display:flex;gap:4px">${badge(t.status)}${badge(t.priority)}</div></div>`;
+    });h+=`</div>`;
+  }
+
+  if(state.tab==='docs'){
+    h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Documents</h2><div style="display:flex;gap:6px"><button class="btn btn-primary" onclick="addDocument('Quotation')">+ Quotation</button><button class="btn btn-primary" onclick="addDocument('Invoice')">+ Invoice</button></div></div>`;
+    if(state.documents.length===0)h+=`<div style="text-align:center;padding:40px;color:#A3A3A3">No documents yet. Create your first quotation or invoice above.</div>`;
+    else{
+      h+=`<div style="overflow-x:auto"><table><thead><tr>${['Type','Doc #','Date','Client','Project','Amount',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
+      [...state.documents].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(d=>{
+        h+=`<tr><td>${badge(d.docType)}</td><td style="font-weight:600">${esc(d.docNumber)}</td><td style="color:#737373">${esc(d.date)}</td><td>${esc(d.clientName)}</td><td>${esc(d.projectName)}</td><td class="text-right" style="font-weight:600">${fmt(d.totalExclVat)}</td><td style="display:flex;gap:4px"><button class="btn btn-ghost" onclick="editDocument('${esc(d.id)}')">Edit</button><button class="btn btn-primary" onclick="generateDocExcel('${esc(d.id)}')">↓ Excel</button></td></tr>`;
+      });
+      h+=`</tbody></table></div>`;
+    }
+  }
+
+  h+=`</div>`;
+  document.getElementById('app').innerHTML=h;
+}
+
+// ═══════════════════════════════════════════════════════
+// DOCUMENT EXCEL GENERATOR (calls server API)
+// ═══════════════════════════════════════════════════════
+async function generateDocExcel(docId){
+  const doc=state.documents.find(d=>d.id===docId);if(!doc)return;
+  const btn=event.target;btn.textContent='Generating...';btn.disabled=true;
+  try{
+    const resp=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
+    if(!resp.ok)throw new Error('Generation failed');
+    const blob=await resp.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=(doc.docNumber||'document')+'_'+(doc.clientName||'').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20)+'.xlsx';
+    a.click();URL.revokeObjectURL(url);
+  }catch(e){alert('Error generating document: '+e.message)}
+  finally{btn.textContent='↓ Excel';btn.disabled=false}
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════
+function setTab(t){state.tab=t;state.filterProject='';state.notifOpen=false;state.exportOpen=false;render()}
+function setFilter(v){state.filterProject=v;render()}
+
+function showModal(type,item){state.modal=type;state.editItem=item;renderModal()}
+function closeModal(){state.modal=null;state.editItem=null;document.getElementById('modal-root')?.remove();render()}
+
+function renderModal(){
+  let el=document.getElementById('modal-root');if(!el){el=document.createElement('div');el.id='modal-root';document.body.appendChild(el)}
+  const it=state.editItem;if(!it){el.remove();return}
+  const pN=state.projects.map(p=>p.name);
+  const sel=(l,v,opts,f)=>`<div class="form-group"><label class="form-label">${l}</label><select class="form-input" onchange="updateEdit('${f}',this.value)"><option value="">—</option>${opts.map(o=>`<option value="${esc(o)}"${v===o?' selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+  const inp=(l,v,f,t='text')=>`<div class="form-group"><label class="form-label">${l}</label><input class="form-input" type="${t}" value="${esc(v||'')}" onchange="updateEdit('${f}',${t==='number'?'Number(this.value)':'this.value'})" /></div>`;
+  let body='';
+  if(state.modal==='project') body=`<div class="form-grid">${inp('Project Name',it.name,'name')}${inp('Client',it.client,'client')}${inp('Email',it.email,'email')}${inp('Phone',it.phone,'phone')}${sel('Status',it.status,LISTS.statuses,'status')}${sel('Type',it.type,LISTS.types,'type')}${inp('Start Date',it.startDate,'startDate','date')}${inp('End Date',it.endDate,'endDate','date')}${inp('Designer',it.designer,'designer')}${sel('Phase',it.phase,LISTS.phases,'phase')}${sel('Priority',it.priority,LISTS.priorities,'priority')}</div>`;
+  else if(state.modal==='expense') body=`<div class="form-grid">${sel('Project',it.project,pN,'project')}${sel('Category',it.category,LISTS.expCats,'category')}${inp('Description',it.description,'description')}${inp('Supplier',it.supplier,'supplier')}${inp('Date',it.date,'date','date')}${inp('Net Amount (€)',it.netAmount,'netAmount','number')}${inp('VAT (€)',it.vat,'vat','number')}${sel('Paid?',it.paid,LISTS.paid,'paid')}</div>`;
+  else if(state.modal==='task') body=`<div class="form-grid">${sel('Project',it.project,pN,'project')}${sel('Category',it.category,LISTS.taskCats,'category')}<div class="form-group span-2"><label class="form-label">Description</label><input class="form-input" value="${esc(it.description||'')}" onchange="updateEdit('description',this.value)"/></div>${inp('Assigned',it.assigned,'assigned')}${inp('Due Date',it.dueDate,'dueDate','date')}${sel('Status',it.status,LISTS.taskStatuses,'status')}${sel('Priority',it.priority,LISTS.priorities,'priority')}</div>`;
+  else if(state.modal==='revenue') body=`<div class="form-grid form-grid-4">${inp('Quotation #',it.quotationNum,'quotationNum')}${inp('Quote Date',it.quoteDate,'quoteDate','date')}${inp('Total Quoted (€)',it.totalQuoted,'totalQuoted','number')}<div></div>${inp('Deposit Inv',it.depositInv,'depositInv')}${inp('Deposit Date',it.depositDate,'depositDate','date')}${inp('Deposit (€)',it.depositAmt,'depositAmt','number')}${sel('Deposit Status',it.depositStatus,LISTS.payStatuses,'depositStatus')}${inp('2nd Pmt Inv',it.secondInv,'secondInv')}${inp('2nd Pmt Date',it.secondDate,'secondDate','date')}${inp('2nd Pmt (€)',it.secondAmt,'secondAmt','number')}${sel('2nd Pmt Status',it.secondStatus,LISTS.payStatuses,'secondStatus')}${inp('Final Inv',it.finalInv,'finalInv')}${inp('Final Date',it.finalDate,'finalDate','date')}${inp('Final (€)',it.finalAmt,'finalAmt','number')}${sel('Final Status',it.finalStatus,LISTS.payStatuses,'finalStatus')}</div>`;
+  else if(state.modal==='document'){
+    const isInv=it.docType==='Invoice';
+    body=`<div style="margin-bottom:12px">${badge(it.docType)}</div>
+    <div class="form-grid">
+      ${inp('Document #',it.docNumber,'docNumber')}${inp('Date (DD.MM.YYYY)',it.date,'date')}
+      ${sel('Project',it.projectName,pN,'projectName')}${inp('Location',it.location,'location')}
+      ${inp('Client Name',it.clientName,'clientName')}${inp('Client VAT #',it.clientVat,'clientVat')}
+      <div class="form-group span-2"><label class="form-label">Client Address (one line per row)</label><textarea class="form-input" rows="3" onchange="updateEdit('clientAddress',this.value)" style="resize:vertical">${esc(it.clientAddress||'')}</textarea></div>
+      ${inp('Work Start Date',it.workStart,'workStart')}${inp('Work End Date',it.workEnd,'workEnd')}
+    </div>
+    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">${isInv?'Line Items':'Scope of Work'}</h4>
+    ${isInv?`
+      <div id="items-list">${(it.items||[]).map((item,i)=>`<div class="form-grid" style="margin-bottom:6px;grid-template-columns:120px 1fr 60px 80px 30px">
+        <input class="form-input" placeholder="Item #" value="${esc(item.itemNumber)}" onchange="updateItemField(${i},'itemNumber',this.value)"/>
+        <input class="form-input" placeholder="Description" value="${esc(item.description)}" onchange="updateItemField(${i},'description',this.value)"/>
+        <input class="form-input" type="number" placeholder="Qty" value="${item.qty||''}" onchange="updateItemField(${i},'qty',Number(this.value))"/>
+        <input class="form-input" type="number" placeholder="Price" value="${item.price||''}" onchange="updateItemField(${i},'price',Number(this.value))"/>
+        <button class="btn btn-danger" style="padding:4px 8px" onclick="removeItem(${i})">✕</button>
+      </div>`).join('')}</div>
+      <button class="btn btn-ghost" style="margin-top:6px" onclick="addItem()">+ Add Item</button>
+    `:`
+      <div class="form-group"><label class="form-label">Scope lines (one per row — lines starting with "Phase" will be bold)</label><textarea class="form-input" rows="8" onchange="updateEdit('scopeText',this.value)" style="resize:vertical">${esc(it.scopeText||'')}</textarea></div>
+    `}
+    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">Totals & Payment</h4>
+    <div class="form-grid">
+      ${inp('Total excl. VAT',it.totalExclVat,'totalExclVat','number')}${inp('VAT % (0 for reverse charge)',it.vatPercent,'vatPercent','number')}${sel('Currency',it.currency||'€',['€','$'],'currency')}
+    </div>
+    <div class="form-group" style="margin-top:8px"><label class="form-label">Payment terms (one per line, leave empty if not needed)</label><textarea class="form-input" rows="3" onchange="updateEdit('paymentText',this.value)" style="resize:vertical">${esc(it.paymentText||'')}</textarea></div>`;
+  }
+  const titles={project:it._isNew?'New Project':'Edit Project',expense:it._isNew?'New Expense':'Edit Expense',task:it._isNew?'New Task':'Edit Task',revenue:'Edit Revenue',document:it._isNew?'New '+((it.docType)||'Document'):'Edit '+((it.docType)||'Document')};
+  el.innerHTML=`<div class="modal-overlay" onclick="closeModal()"><div class="modal${state.modal==='revenue'||state.modal==='document'?' wide':''}" onclick="event.stopPropagation()"><div class="flex-between" style="margin-bottom:20px"><h3 class="modal-title" style="margin:0">${titles[state.modal]}</h3><button style="background:none;border:none;font-size:18px;color:#A3A3A3;cursor:pointer" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">${!it._isNew?'<button class="btn btn-danger" onclick="deleteItem()">Delete</button>':''}<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveItem()">Save</button></div></div></div>`;
+}
+
+function updateEdit(f,v){state.editItem[f]=v;renderModal()}
+function addItem(){if(!state.editItem.items)state.editItem.items=[];state.editItem.items.push({itemNumber:'',description:'',qty:0,price:0});renderModal()}
+function removeItem(i){state.editItem.items.splice(i,1);renderModal()}
+function updateItemField(i,f,v){state.editItem.items[i][f]=v;renderModal()}
+
+function addProject(){showModal('project',{id:'PRJ-'+Date.now(),name:'',client:'',email:'',phone:'',status:'Planning',type:'',startDate:'',endDate:'',designer:'Viviane Z',phase:'Briefing',priority:'Medium',_isNew:true})}
+function editProject(id){const p=state.projects.find(x=>x.id===id);if(p)showModal('project',{...p})}
+function addExpense(){showModal('expense',{id:'E-'+Date.now(),project:'',category:'',description:'',supplier:'',date:'',netAmount:0,vat:0,paid:'No',_isNew:true})}
+function editExpense(id){const e=state.expenses.find(x=>x.id===id);if(e)showModal('expense',{...e})}
+function addTask(){showModal('task',{id:'T-'+Date.now(),project:'',description:'',category:'',assigned:'Viviane Z',dueDate:'',status:'To Do',priority:'Medium',_isNew:true})}
+function editTask(id){const t=state.tasks.find(x=>x.id===id);if(t)showModal('task',{...t})}
+function editRevenue(id){const r=state.revenue.find(x=>x.id===id);if(r)showModal('revenue',{...r})}
+function addDocument(type){showModal('document',{id:'DOC-'+Date.now(),docType:type,docNumber:'',date:'',clientName:'',clientAddress:'',clientVat:'',projectName:'',location:'',workStart:'',workEnd:'',currency:'€',items:[],scopeLines:[],scopeText:'',totalExclVat:0,vatPercent:0,paymentTerms:[],paymentText:'',_isNew:true})}
+function editDocument(id){const d=state.documents.find(x=>x.id===id);if(d)showModal('document',{...d,scopeText:(d.scopeLines||[]).join('\n'),paymentText:(d.paymentTerms||[]).join('\n')})}
+
+async function saveItem(){
+  const it=state.editItem;if(!it)return;
+  // Remove _isNew flag before saving
+  const clean={...it};delete clean._isNew;
+
+  if(state.modal==='project'){
+    if(!it.name)return;
+    // If renaming, update all linked records
+    if(!it._isNew){
+      const old=state.projects.find(p=>p.id===it.id);
+      if(old&&old.name!==it.name){
+        for(const r of state.revenue.filter(r=>r.project===old.name)){r.project=it.name;await db.collection('revenue').doc(r.id).update({project:it.name})}
+        for(const e of state.expenses.filter(e=>e.project===old.name)){e.project=it.name;await db.collection('expenses').doc(e.id).update({project:it.name})}
+        for(const t of state.tasks.filter(t=>t.project===old.name)){t.project=it.name;await db.collection('tasks').doc(t.id).update({project:it.name})}
+      }
+    }
+    await db.collection('projects').doc(clean.id).set(clean);
+    // If new project, also create a revenue record
+    if(it._isNew){const rev={id:'R-'+Date.now(),project:it.name,quotationNum:'',quoteDate:'',totalQuoted:0,depositInv:'',depositDate:'',depositAmt:0,depositStatus:'Not Received',secondInv:'',secondDate:'',secondAmt:0,secondStatus:'Not Received',finalInv:'',finalDate:'',finalAmt:0,finalStatus:'Not Received'};await db.collection('revenue').doc(rev.id).set(rev)}
+  }
+  else if(state.modal==='expense'){if(!it.project)return;await db.collection('expenses').doc(clean.id).set(clean)}
+  else if(state.modal==='task'){if(!it.project||!it.description)return;await db.collection('tasks').doc(clean.id).set(clean)}
+  else if(state.modal==='revenue'){await db.collection('revenue').doc(clean.id).set(clean)}
+  else if(state.modal==='document'){
+    // Process text fields into arrays
+    if(clean.scopeText){clean.scopeLines=clean.scopeText.split('\n').filter(l=>l.trim());delete clean.scopeText}
+    if(clean.paymentText){clean.paymentTerms=clean.paymentText.split('\n').filter(l=>l.trim());delete clean.paymentText}
+    clean.totalExclVat=Number(clean.totalExclVat)||0;
+    clean.vatPercent=Number(clean.vatPercent)||0;
+    await db.collection('documents').doc(clean.id).set(clean);
+  }
+  closeModal();
+}
+
+async function deleteItem(){
+  const it=state.editItem;if(!it)return;
+  const col={project:'projects',expense:'expenses',task:'tasks',document:'documents'}[state.modal];
+  if(col)await db.collection(col).doc(it.id).delete();
+  closeModal();
+}
+
+document.addEventListener('click',e=>{if(state.notifOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.notifOpen=false;render()}if(state.exportOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.exportOpen=false;render()}});
+</script>
+</body>
+</html>
