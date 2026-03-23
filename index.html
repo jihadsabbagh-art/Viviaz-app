@@ -12,6 +12,33 @@ body{background:#FAFAFA;font-family:'Inter',sans-serif;color:#111}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#D4D4D4;border-radius:3px}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{position:fixed;inset:0;background:#FAFAFA;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s}
+#login-screen.hidden{opacity:0;pointer-events:none}
+.login-card{background:#fff;border:1px solid #E5E5E5;border-radius:16px;padding:40px;width:380px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.06)}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.login-logo-mark{width:36px;height:36px;border-radius:8px;background:#111;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff}
+.login-logo-text{font-size:18px;font-weight:700;color:#111;letter-spacing:-.4px}
+.login-title{font-size:22px;font-weight:700;color:#111;margin-bottom:6px;letter-spacing:-.4px}
+.login-sub{font-size:13px;color:#737373;margin-bottom:28px}
+.login-field{margin-bottom:14px}
+.login-label{display:block;font-size:11px;font-weight:600;color:#737373;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.login-input{width:100%;border:1px solid #E5E5E5;border-radius:8px;padding:11px 14px;font-size:14px;font-family:inherit;color:#111;outline:none;transition:border-color .15s,box-shadow .15s;background:#fff}
+.login-input:focus{border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.06)}
+.login-input.error{border-color:#EF4444}
+.login-btn{width:100%;background:#111;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:6px;transition:background .15s,transform .1s}
+.login-btn:hover{background:#333}
+.login-btn:active{transform:scale(.99)}
+.login-btn:disabled{background:#D4D4D4;cursor:not-allowed;transform:none}
+.login-error{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:10px 14px;font-size:13px;color:#991B1B;margin-bottom:14px;display:none}
+.login-error.visible{display:block}
+.login-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── APP ── */
+#app{display:none}
+#app.visible{display:block}
 .header{background:#fff;border-bottom:1px solid #E5E5E5;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .logo{display:flex;align-items:center;gap:10px}
 .logo-mark{width:28px;height:28px;border-radius:6px;background:#111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
@@ -83,10 +110,39 @@ select.form-input{cursor:pointer}
 </style>
 </head>
 <body>
-<div id="app"><div class="loading">Loading Viviaz...</div></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">V</div>
+      <span class="login-logo-text">VIVIAZ</span>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Sign in to your project tracker</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-field">
+      <label class="login-label">Email</label>
+      <input class="login-input" type="email" id="login-email" placeholder="your@email.com" autocomplete="email" />
+    </div>
+    <div class="login-field">
+      <label class="login-label">Password</label>
+      <input class="login-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     APP (hidden until authenticated)
+════════════════════════════════════════════════════════ -->
+<div id="app"><div class="loading">Connecting to Viviaz Cloud...</div></div>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <!-- SheetJS for Excel export -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -104,6 +160,80 @@ firebase.initializeApp({
   appId: "1:928360791444:web:e72ad7b779580f6fdb2381"
 });
 const db = firebase.firestore();
+const auth = firebase.auth();
+
+// ═══════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════
+let appStarted = false;
+
+// Watch auth state — this fires on every page load
+auth.onAuthStateChanged(user => {
+  if (user) {
+    // Logged in — hide login screen, show app
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.add('visible');
+    if (!appStarted) {
+      appStarted = true;
+      startApp();
+    }
+  } else {
+    // Not logged in — show login screen, hide app
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app').classList.remove('visible');
+    appStarted = false;
+  }
+});
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+
+  if (!email || !password) {
+    showLoginError('Please enter your email and password.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="login-spinner"></span>Signing in…';
+  errEl.classList.remove('visible');
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged will handle the rest
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+    const msgs = {
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password. Please try again.',
+      'auth/invalid-email': 'Please enter a valid email address.',
+      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+    };
+    showLoginError(msgs[e.code] || 'Sign in failed. Please try again.');
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+  document.getElementById('login-input' in document ? 'login-email' : 'login-email').classList.add('error');
+}
+
+function doLogout() {
+  auth.signOut();
+}
+
+// Allow Enter key on login form
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('login-screen').classList.contains('hidden')) {
+    doLogin();
+  }
+});
 
 // ═══════════════════════════════════════════════════════
 // DEFAULT DATA (used only on very first load when DB is empty)
@@ -168,23 +298,19 @@ const LISTS={statuses:["Active","Planning","On Hold","Completed","Cancelled"],ty
 // ═══════════════════════════════════════════════════════
 let state={projects:[],revenue:[],expenses:[],tasks:[],documents:[],tab:'dashboard',modal:null,editItem:null,filterProject:'',notifOpen:false,exportOpen:false,synced:false};
 
-// Save a single collection to Firestore
 async function fbSave(col, items) {
   const batch = db.batch();
-  // We store the entire collection as individual docs by id
   for (const item of items) {
-    const docId = item.id || item.project; // revenue uses project as key
+    const docId = item.id || item.project;
     batch.set(db.collection(col).doc(String(docId)), item);
   }
   await batch.commit();
 }
 
-// Delete a doc from Firestore
 async function fbDelete(col, docId) {
   await db.collection(col).doc(String(docId)).delete();
 }
 
-// Seed defaults if DB is empty
 async function seedIfEmpty() {
   const snap = await db.collection('projects').limit(1).get();
   if (snap.empty) {
@@ -200,14 +326,12 @@ async function seedIfEmpty() {
   }
 }
 
-// Listen for real-time updates
 function listenAll() {
   const cols = ['projects','revenue','expenses','tasks','documents'];
   cols.forEach(col => {
     db.collection(col).onSnapshot(snap => {
       state[col] = snap.docs.map(d => {
         const data = d.data();
-        // Ensure numeric fields stay numeric
         if (col === 'revenue') { data.totalQuoted = Number(data.totalQuoted)||0; data.depositAmt = Number(data.depositAmt)||0; data.secondAmt = Number(data.secondAmt)||0; data.finalAmt = Number(data.finalAmt)||0; }
         if (col === 'expenses') { data.netAmount = Number(data.netAmount)||0; data.vat = Number(data.vat)||0; }
         return data;
@@ -218,8 +342,9 @@ function listenAll() {
   });
 }
 
-// Init
-(async () => { await seedIfEmpty(); listenAll(); })();
+function startApp() {
+  (async () => { await seedIfEmpty(); listenAll(); })();
+}
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -259,7 +384,6 @@ function getNotifs(){
   return n.sort((a,b)=>a.type==='overdue'?-1:1);
 }
 
-// Excel export
 function doExport(pf){
   const wb=XLSX.utils.book_new();const p=getPnl();
   const fp=pf?p.filter(x=>x.name===pf):p;
@@ -289,6 +413,9 @@ function render(){
   const fExp=state.filterProject?state.expenses.filter(e=>e.project===state.filterProject):state.expenses;
   const fTasks=state.filterProject?state.tasks.filter(t=>t.project===state.filterProject):state.tasks;
 
+  // Get current user email for display
+  const userEmail = auth.currentUser ? auth.currentUser.email : '';
+
   let h=`<div class="header"><div class="logo"><div class="logo-mark">V</div><span class="logo-text">VIVIAZ</span><div class="sync-dot" style="background:#16A34A" title="Cloud synced"></div></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div style="position:relative"><button class="btn btn-ghost" onclick="state.exportOpen=!state.exportOpen;state.notifOpen=false;render()">↓ Export</button>
@@ -297,6 +424,8 @@ function render(){
       <div style="position:relative"><button class="btn ${odc?'btn-danger':'btn-ghost'}" onclick="state.notifOpen=!state.notifOpen;state.exportOpen=false;render()" style="min-width:32px">⚠ ${odc||''}</button>
         ${state.notifOpen?`<div class="dropdown" style="width:340px"><div class="dropdown-header">Notifications (${notifs.length})</div>${notifs.length?notifs.map(n=>`<div class="dropdown-item"><span>${n.type==='overdue'?'🔴':n.type==='soon'?'🟡':'💰'}</span><span>${esc(n.text)}</span></div>`).join(''):'<div style="padding:14px;color:#A3A3A3;font-size:13px">All clear</div>'}</div>`:''}
       </div>
+      <span style="font-size:11px;color:#A3A3A3;margin-left:4px">${esc(userEmail)}</span>
+      <button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px;padding:5px 10px">Sign out</button>
     </div>
   </div>
   <div class="tabs">${[['dashboard','Dashboard'],['projects','Projects',state.projects.length],['revenue','Revenue'],['expenses','Expenses',state.expenses.length],['pnl','P&L'],['tasks','Tasks',state.tasks.filter(t=>t.status!=='Done').length],['docs','Documents',state.documents?state.documents.length:0]].map(([k,l,c])=>'<button class="tab'+(state.tab===k?' active':'')+'" onclick="setTab(\''+k+'\')">'+l+(c!=null?'<span class="tab-count">'+c+'</span>':'')+'</button>').join('')}</div>
@@ -384,7 +513,7 @@ function render(){
 }
 
 // ═══════════════════════════════════════════════════════
-// DOCUMENT EXCEL GENERATOR (calls server API)
+// DOCUMENT EXCEL GENERATOR
 // ═══════════════════════════════════════════════════════
 async function generateDocExcel(docId){
   const doc=state.documents.find(d=>d.id===docId);if(!doc)return;
@@ -406,7 +535,6 @@ async function generateDocExcel(docId){
 // ═══════════════════════════════════════════════════════
 function setTab(t){state.tab=t;state.filterProject='';state.notifOpen=false;state.exportOpen=false;render()}
 function setFilter(v){state.filterProject=v;render()}
-
 function showModal(type,item){state.modal=type;state.editItem=item;renderModal()}
 function closeModal(){state.modal=null;state.editItem=null;document.getElementById('modal-root')?.remove();render()}
 
@@ -448,7 +576,7 @@ function renderModal(){
     <div class="form-grid">
       ${inp('Total excl. VAT',it.totalExclVat,'totalExclVat','number')}${inp('VAT % (0 for reverse charge)',it.vatPercent,'vatPercent','number')}${sel('Currency',it.currency||'€',['€','$'],'currency')}
     </div>
-    <div class="form-group" style="margin-top:8px"><label class="form-label">Payment terms (one per line, leave empty if not needed)</label><textarea class="form-input" rows="3" onchange="updateEdit('paymentText',this.value)" style="resize:vertical">${esc(it.paymentText||'')}</textarea></div>`;
+    <div class="form-group" style="margin-top:8px"><label class="form-label">Payment terms (one per line)</label><textarea class="form-input" rows="3" onchange="updateEdit('paymentText',this.value)" style="resize:vertical">${esc(it.paymentText||'')}</textarea></div>`;
   }
   const titles={project:it._isNew?'New Project':'Edit Project',expense:it._isNew?'New Expense':'Edit Expense',task:it._isNew?'New Task':'Edit Task',revenue:'Edit Revenue',document:it._isNew?'New '+((it.docType)||'Document'):'Edit '+((it.docType)||'Document')};
   el.innerHTML=`<div class="modal-overlay" onclick="closeModal()"><div class="modal${state.modal==='revenue'||state.modal==='document'?' wide':''}" onclick="event.stopPropagation()"><div class="flex-between" style="margin-bottom:20px"><h3 class="modal-title" style="margin:0">${titles[state.modal]}</h3><button style="background:none;border:none;font-size:18px;color:#A3A3A3;cursor:pointer" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">${!it._isNew?'<button class="btn btn-danger" onclick="deleteItem()">Delete</button>':''}<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveItem()">Save</button></div></div></div>`;
@@ -471,12 +599,9 @@ function editDocument(id){const d=state.documents.find(x=>x.id===id);if(d)showMo
 
 async function saveItem(){
   const it=state.editItem;if(!it)return;
-  // Remove _isNew flag before saving
   const clean={...it};delete clean._isNew;
-
   if(state.modal==='project'){
     if(!it.name)return;
-    // If renaming, update all linked records
     if(!it._isNew){
       const old=state.projects.find(p=>p.id===it.id);
       if(old&&old.name!==it.name){
@@ -486,14 +611,12 @@ async function saveItem(){
       }
     }
     await db.collection('projects').doc(clean.id).set(clean);
-    // If new project, also create a revenue record
     if(it._isNew){const rev={id:'R-'+Date.now(),project:it.name,quotationNum:'',quoteDate:'',totalQuoted:0,depositInv:'',depositDate:'',depositAmt:0,depositStatus:'Not Received',secondInv:'',secondDate:'',secondAmt:0,secondStatus:'Not Received',finalInv:'',finalDate:'',finalAmt:0,finalStatus:'Not Received'};await db.collection('revenue').doc(rev.id).set(rev)}
   }
   else if(state.modal==='expense'){if(!it.project)return;await db.collection('expenses').doc(clean.id).set(clean)}
   else if(state.modal==='task'){if(!it.project||!it.description)return;await db.collection('tasks').doc(clean.id).set(clean)}
   else if(state.modal==='revenue'){await db.collection('revenue').doc(clean.id).set(clean)}
   else if(state.modal==='document'){
-    // Process text fields into arrays
     if(clean.scopeText){clean.scopeLines=clean.scopeText.split('\n').filter(l=>l.trim());delete clean.scopeText}
     if(clean.paymentText){clean.paymentTerms=clean.paymentText.split('\n').filter(l=>l.trim());delete clean.paymentText}
     clean.totalExclVat=Number(clean.totalExclVat)||0;
