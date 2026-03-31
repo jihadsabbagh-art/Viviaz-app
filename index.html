@@ -12,8 +12,6 @@ body{background:#FAFAFA;font-family:'Inter',sans-serif;color:#111}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#D4D4D4;border-radius:3px}
-
-/* ── LOGIN SCREEN ── */
 #login-screen{position:fixed;inset:0;background:#FAFAFA;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s}
 #login-screen.hidden{opacity:0;pointer-events:none}
 .login-card{background:#fff;border:1px solid #E5E5E5;border-radius:16px;padding:40px;width:380px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,.06)}
@@ -35,8 +33,6 @@ body{background:#FAFAFA;font-family:'Inter',sans-serif;color:#111}
 .login-error.visible{display:block}
 .login-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── APP ── */
 #app{display:none}
 #app.visible{display:block}
 .header{background:#fff;border-bottom:1px solid #E5E5E5;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
@@ -111,9 +107,6 @@ select.form-input{cursor:pointer}
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════
-     LOGIN SCREEN
-════════════════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -135,22 +128,14 @@ select.form-input{cursor:pointer}
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     APP (hidden until authenticated)
-════════════════════════════════════════════════════════ -->
 <div id="app"><div class="loading">Connecting to Viviaz Cloud...</div></div>
 
-<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<!-- SheetJS for Excel export -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
 <script>
-// ═══════════════════════════════════════════════════════
-// FIREBASE INIT
-// ═══════════════════════════════════════════════════════
 firebase.initializeApp({
   apiKey: "AIzaSyASwy5xt_p5GjVn9rfHKrpkKX6m1eCxfXU",
   authDomain: "viviazapp.firebaseapp.com",
@@ -162,23 +147,14 @@ firebase.initializeApp({
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// ═══════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════
 let appStarted = false;
 
-// Watch auth state — this fires on every page load
 auth.onAuthStateChanged(user => {
   if (user) {
-    // Logged in — hide login screen, show app
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app').classList.add('visible');
-    if (!appStarted) {
-      appStarted = true;
-      startApp();
-    }
+    if (!appStarted) { appStarted = true; startApp(); }
   } else {
-    // Not logged in — show login screen, hide app
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app').classList.remove('visible');
     appStarted = false;
@@ -190,54 +166,23 @@ async function doLogin() {
   const password = document.getElementById('login-password').value;
   const btn = document.getElementById('login-btn');
   const errEl = document.getElementById('login-error');
-
-  if (!email || !password) {
-    showLoginError('Please enter your email and password.');
-    return;
-  }
-
+  if (!email || !password) { showLoginError('Please enter your email and password.'); return; }
   btn.disabled = true;
   btn.innerHTML = '<span class="login-spinner"></span>Signing in…';
   errEl.classList.remove('visible');
-
   try {
     await auth.signInWithEmailAndPassword(email, password);
-    // onAuthStateChanged will handle the rest
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'Sign In';
-    const msgs = {
-      'auth/user-not-found': 'No account found with this email.',
-      'auth/wrong-password': 'Incorrect password. Please try again.',
-      'auth/invalid-email': 'Please enter a valid email address.',
-      'auth/too-many-requests': 'Too many attempts. Please try again later.',
-      'auth/invalid-credential': 'Incorrect email or password.',
-    };
+    const msgs = {'auth/user-not-found':'No account found with this email.','auth/wrong-password':'Incorrect password.','auth/invalid-email':'Please enter a valid email address.','auth/too-many-requests':'Too many attempts. Please try again later.','auth/invalid-credential':'Incorrect email or password.'};
     showLoginError(msgs[e.code] || 'Sign in failed. Please try again.');
   }
 }
+function showLoginError(msg) { const el=document.getElementById('login-error'); el.textContent=msg; el.classList.add('visible'); }
+function doLogout() { auth.signOut(); }
+document.addEventListener('keydown', e => { if (e.key==='Enter' && !document.getElementById('login-screen').classList.contains('hidden')) doLogin(); });
 
-function showLoginError(msg) {
-  const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.classList.add('visible');
-  document.getElementById('login-input' in document ? 'login-email' : 'login-email').classList.add('error');
-}
-
-function doLogout() {
-  auth.signOut();
-}
-
-// Allow Enter key on login form
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !document.getElementById('login-screen').classList.contains('hidden')) {
-    doLogin();
-  }
-});
-
-// ═══════════════════════════════════════════════════════
-// DEFAULT DATA (used only on very first load when DB is empty)
-// ═══════════════════════════════════════════════════════
 const DEFAULTS={
 projects:[
   {id:"PRJ-001",name:"Telegraf- Vienna",client:"Mr. & Mrs. Petchnikar",email:"",phone:"",status:"Active",type:"Residential",startDate:"2024-04-01",endDate:"2026-10-30",designer:"Viviane Z",phase:"Technical Drawings",priority:"Medium"},
@@ -293,34 +238,21 @@ tasks:[
 
 const LISTS={statuses:["Active","Planning","On Hold","Completed","Cancelled"],types:["Residential","Commercial","F&B","Hospitality","Retail","Office","Other"],phases:["Briefing","Concept","Schematic Design","Design Development","FF&E","Technical Drawings","Construction","Handover"],priorities:["High","Medium","Low"],payStatuses:["Not Received","Received","Partial","Waived"],expCats:["Materials & FF&E","External Consultant","Travel & Site Visit","Other"],taskStatuses:["To Do","In Progress","Done","Overdue","On Hold"],taskCats:["Client Communication","Design","Procurement","Site Visit","Admin","Finance","Legal","Coordination"],paid:["Yes","No","Partial"]};
 
-// ═══════════════════════════════════════════════════════
-// STATE & FIREBASE SYNC
-// ═══════════════════════════════════════════════════════
 let state={projects:[],revenue:[],expenses:[],tasks:[],documents:[],tab:'dashboard',modal:null,editItem:null,filterProject:'',notifOpen:false,exportOpen:false,synced:false};
 
 async function fbSave(col, items) {
   const batch = db.batch();
-  for (const item of items) {
-    const docId = item.id || item.project;
-    batch.set(db.collection(col).doc(String(docId)), item);
-  }
+  for (const item of items) { const docId = item.id || item.project; batch.set(db.collection(col).doc(String(docId)), item); }
   await batch.commit();
 }
-
-async function fbDelete(col, docId) {
-  await db.collection(col).doc(String(docId)).delete();
-}
+async function fbDelete(col, docId) { await db.collection(col).doc(String(docId)).delete(); }
 
 async function seedIfEmpty() {
   const snap = await db.collection('projects').limit(1).get();
   if (snap.empty) {
-    console.log('Seeding default data...');
     for (const col of ['projects','revenue','expenses','tasks']) {
       const batch = db.batch();
-      for (const item of DEFAULTS[col]) {
-        const docId = item.id || item.project;
-        batch.set(db.collection(col).doc(String(docId)), item);
-      }
+      for (const item of DEFAULTS[col]) { const docId = item.id || item.project; batch.set(db.collection(col).doc(String(docId)), item); }
       await batch.commit();
     }
   }
@@ -332,8 +264,8 @@ function listenAll() {
     db.collection(col).onSnapshot(snap => {
       state[col] = snap.docs.map(d => {
         const data = d.data();
-        if (col === 'revenue') { data.totalQuoted = Number(data.totalQuoted)||0; data.depositAmt = Number(data.depositAmt)||0; data.secondAmt = Number(data.secondAmt)||0; data.finalAmt = Number(data.finalAmt)||0; }
-        if (col === 'expenses') { data.netAmount = Number(data.netAmount)||0; data.vat = Number(data.vat)||0; }
+        if (col === 'revenue') { data.totalQuoted=Number(data.totalQuoted)||0; data.depositAmt=Number(data.depositAmt)||0; data.secondAmt=Number(data.secondAmt)||0; data.finalAmt=Number(data.finalAmt)||0; }
+        if (col === 'expenses') { data.netAmount=Number(data.netAmount)||0; data.vat=Number(data.vat)||0; }
         return data;
       });
       state.synced = true;
@@ -342,13 +274,8 @@ function listenAll() {
   });
 }
 
-function startApp() {
-  (async () => { await seedIfEmpty(); listenAll(); })();
-}
+function startApp() { (async () => { await seedIfEmpty(); listenAll(); })(); }
 
-// ═══════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════
 const fmt=n=>n==null?'€0':'€'+Math.round(n).toLocaleString();
 const pct=n=>n==null||isNaN(n)?'0%':(n*100).toFixed(1)+'%';
 const daysLeft=d=>{if(!d)return null;return Math.ceil((new Date(d)-new Date())/864e5)};
@@ -363,13 +290,13 @@ function badge(text){
 function getPnl(){
   return state.projects.map(p=>{
     const rev=state.revenue.find(r=>r.project===p.name)||{};
-    const q=rev.totalQuoted||0;const rc=rcvd(rev);
+    const q=rev.totalQuoted||0; const rc=rcvd(rev);
     const pe=state.expenses.filter(e=>e.project===p.name);
     const te=pe.reduce((a,e)=>a+e.netAmount,0);
     const me=pe.filter(e=>e.category==='Materials & FF&E').reduce((a,e)=>a+e.netAmount,0);
     const ce=pe.filter(e=>e.category==='External Consultant').reduce((a,e)=>a+e.netAmount,0);
     const ve=pe.filter(e=>e.category==='Travel & Site Visit').reduce((a,e)=>a+e.netAmount,0);
-    const op=q-te;const opPct=q?op/q:0;const out=q-rc;
+    const op=q-te; const opPct=q?op/q:0; const out=q-rc;
     const td=state.tasks.filter(t=>t.project===p.name&&t.status==='Done').length;
     const tt=state.tasks.filter(t=>t.project===p.name).length;
     return{...p,quoted:q,received:rc,totalExp:te,matExp:me,conExp:ce,trvExp:ve,op,opPct,outstanding:out,pctComplete:tt?td/tt:0,tasksDone:td,tasksTotal:tt,daysLeft:daysLeft(p.endDate)};
@@ -378,14 +305,14 @@ function getPnl(){
 
 function getNotifs(){
   const n=[];
-  state.tasks.forEach(t=>{if(t.status==='Done')return;const dl=daysLeft(t.dueDate);if(dl===null)return;if(dl<0)n.push({type:'overdue',text:t.description+' ('+t.project+') — '+Math.abs(dl)+'d overdue'});else if(dl<=7)n.push({type:'soon',text:t.description+' ('+t.project+') — due in '+dl+'d'});});
-  state.projects.forEach(p=>{if(p.status!=='Active'||!p.endDate)return;const dl=daysLeft(p.endDate);if(dl!==null&&dl<0)n.push({type:'overdue',text:p.name+' deadline passed '+Math.abs(dl)+'d ago'});else if(dl!==null&&dl<=30)n.push({type:'soon',text:p.name+' deadline in '+dl+'d'});});
-  state.revenue.forEach(r=>{if(r.totalQuoted>0){const rc=[r.depositStatus,r.secondStatus,r.finalStatus].filter(s=>s==='Received').length;const tot=[r.depositAmt,r.secondAmt,r.finalAmt].filter(a=>a>0).length;if(rc<tot)n.push({type:'payment',text:r.project+' — '+(tot-rc)+' payment(s) outstanding'})}});
+  state.tasks.forEach(t=>{if(t.status==='Done')return; const dl=daysLeft(t.dueDate); if(dl===null)return; if(dl<0)n.push({type:'overdue',text:t.description+' ('+t.project+') — '+Math.abs(dl)+'d overdue'}); else if(dl<=7)n.push({type:'soon',text:t.description+' ('+t.project+') — due in '+dl+'d'});});
+  state.projects.forEach(p=>{if(p.status!=='Active'||!p.endDate)return; const dl=daysLeft(p.endDate); if(dl!==null&&dl<0)n.push({type:'overdue',text:p.name+' deadline passed '+Math.abs(dl)+'d ago'}); else if(dl!==null&&dl<=30)n.push({type:'soon',text:p.name+' deadline in '+dl+'d'});});
+  state.revenue.forEach(r=>{if(r.totalQuoted>0){const rc2=[r.depositStatus,r.secondStatus,r.finalStatus].filter(s=>s==='Received').length; const tot=[r.depositAmt,r.secondAmt,r.finalAmt].filter(a=>a>0).length; if(rc2<tot)n.push({type:'payment',text:r.project+' — '+(tot-rc2)+' payment(s) outstanding'})}});
   return n.sort((a,b)=>a.type==='overdue'?-1:1);
 }
 
 function doExport(pf){
-  const wb=XLSX.utils.book_new();const p=getPnl();
+  const wb=XLSX.utils.book_new(); const p=getPnl();
   const fp=pf?p.filter(x=>x.name===pf):p;
   const fr=pf?state.revenue.filter(x=>x.project===pf):state.revenue;
   const fe=pf?state.expenses.filter(x=>x.project===pf):state.expenses;
@@ -407,13 +334,11 @@ function doExport(pf){
 // ═══════════════════════════════════════════════════════
 function render(){
   if(!state.synced){document.getElementById('app').innerHTML='<div class="loading">Connecting to Viviaz Cloud...</div>';return}
-  const pnl=getPnl();const notifs=getNotifs();const odc=notifs.filter(n=>n.type==='overdue').length;
+  const pnl=getPnl(); const notifs=getNotifs(); const odc=notifs.filter(n=>n.type==='overdue').length;
   const tot={quoted:pnl.reduce((a,p)=>a+p.quoted,0),received:pnl.reduce((a,p)=>a+p.received,0),totalExp:pnl.reduce((a,p)=>a+p.totalExp,0),op:pnl.reduce((a,p)=>a+p.op,0),outstanding:pnl.reduce((a,p)=>a+p.outstanding,0)};
   const pNames=state.projects.map(p=>p.name);
   const fExp=state.filterProject?state.expenses.filter(e=>e.project===state.filterProject):state.expenses;
   const fTasks=state.filterProject?state.tasks.filter(t=>t.project===state.filterProject):state.tasks;
-
-  // Get current user email for display
   const userEmail = auth.currentUser ? auth.currentUser.email : '';
 
   let h=`<div class="header"><div class="logo"><div class="logo-mark">V</div><span class="logo-text">VIVIAZ</span><div class="sync-dot" style="background:#16A34A" title="Cloud synced"></div></div>
@@ -465,8 +390,8 @@ function render(){
 
   if(state.tab==='revenue'){
     h+=`<h2 style="font-size:17px;font-weight:700;margin-bottom:16px">Revenue & Payments</h2><div style="overflow-x:auto"><table><thead><tr>${['Project','Quoted','Deposit','Status','2nd Pmt','Status','Final','Status','Received','Outstanding','%',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
-    state.revenue.forEach((r,i)=>{const rc=rcvd(r);const out=(r.totalQuoted||0)-rc;const pc=r.totalQuoted?rc/r.totalQuoted:0;
-      h+=`<tr><td style="font-weight:600">${esc(r.project)}</td><td class="text-right">${fmt(r.totalQuoted)}</td><td class="text-right">${fmt(r.depositAmt)}</td><td>${badge(r.depositStatus)}</td><td class="text-right">${fmt(r.secondAmt)}</td><td>${badge(r.secondStatus)}</td><td class="text-right">${fmt(r.finalAmt)}</td><td>${badge(r.finalStatus)}</td><td class="text-right" style="color:#16A34A;font-weight:600">${fmt(rc)}</td><td class="text-right" style="color:#D97706;font-weight:600">${fmt(out)}</td><td><div class="progress-bar" style="width:50px"><div class="progress-fill" style="width:${pc*100}%"></div></div></td><td><button class="btn btn-ghost" onclick="editRevenue('${esc(r.id)}')">Edit</button></td></tr>`;
+    state.revenue.forEach((r)=>{const rc2=rcvd(r); const out=(r.totalQuoted||0)-rc2; const pc=r.totalQuoted?rc2/r.totalQuoted:0;
+      h+=`<tr><td style="font-weight:600">${esc(r.project)}</td><td class="text-right">${fmt(r.totalQuoted)}</td><td class="text-right">${fmt(r.depositAmt)}</td><td>${badge(r.depositStatus)}</td><td class="text-right">${fmt(r.secondAmt)}</td><td>${badge(r.secondStatus)}</td><td class="text-right">${fmt(r.finalAmt)}</td><td>${badge(r.finalStatus)}</td><td class="text-right" style="color:#16A34A;font-weight:600">${fmt(rc2)}</td><td class="text-right" style="color:#D97706;font-weight:600">${fmt(out)}</td><td><div class="progress-bar" style="width:50px"><div class="progress-fill" style="width:${pc*100}%"></div></div></td><td><button class="btn btn-ghost" onclick="editRevenue('${esc(r.id)}')">Edit</button></td></tr>`;
     });h+=`</tbody></table></div>`;
   }
 
@@ -474,7 +399,7 @@ function render(){
     h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Expenses</h2><div style="display:flex;gap:6px;align-items:center"><select class="filter-select" onchange="setFilter(this.value)"><option value="">All Projects</option>${pNames.map(n=>'<option value="'+esc(n)+'"'+(state.filterProject===n?' selected':'')+'>'+esc(n)+'</option>').join('')}</select><button class="btn btn-primary" onclick="addExpense()">+ Add Expense</button></div></div>
     <div style="overflow-x:auto"><table><thead><tr>${['Project','Category','Description','Supplier','Date','Net','VAT','Total','Paid',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
     fExp.forEach(e=>{h+=`<tr><td style="font-weight:500">${esc(e.project)}</td><td>${esc(e.category)}</td><td>${esc(e.description)}</td><td style="color:#737373">${esc(e.supplier)}</td><td style="color:#737373">${esc(e.date)}</td><td class="text-right">${fmt(e.netAmount)}</td><td class="text-right" style="color:#A3A3A3">${fmt(e.vat)}</td><td class="text-right" style="font-weight:600">${fmt(e.netAmount+e.vat)}</td><td>${badge(e.paid)}</td><td><button class="btn btn-ghost" onclick="editExpense('${esc(e.id)}')">Edit</button></td></tr>`});
-    const tN=fExp.reduce((a,e)=>a+e.netAmount,0);const tV=fExp.reduce((a,e)=>a+e.vat,0);
+    const tN=fExp.reduce((a,e)=>a+e.netAmount,0); const tV=fExp.reduce((a,e)=>a+e.vat,0);
     h+=`</tbody><tfoot><tr><td colspan="5">Total</td><td class="text-right">${fmt(tN)}</td><td class="text-right" style="color:#A3A3A3">${fmt(tV)}</td><td class="text-right">${fmt(tN+tV)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
   }
 
@@ -487,7 +412,7 @@ function render(){
   if(state.tab==='tasks'){
     h+=`<div class="flex-between" style="margin-bottom:16px"><h2 style="font-size:17px;font-weight:700">Tasks</h2><div style="display:flex;gap:6px;align-items:center"><select class="filter-select" onchange="setFilter(this.value)"><option value="">All Projects</option>${pNames.map(n=>'<option value="'+esc(n)+'"'+(state.filterProject===n?' selected':'')+'>'+esc(n)+'</option>').join('')}</select><button class="btn btn-primary" onclick="addTask()">+ Add Task</button></div></div><div style="display:grid;gap:6px">`;
     [...fTasks].sort((a,b)=>a.status==='Done'?1:b.status==='Done'?-1:new Date(a.dueDate)-new Date(b.dueDate)).forEach(t=>{
-      const dl=daysLeft(t.dueDate);const od=t.status!=='Done'&&dl!==null&&dl<0;
+      const dl=daysLeft(t.dueDate); const od=t.status!=='Done'&&dl!==null&&dl<0;
       h+=`<div class="task-item${od?' overdue':''}${t.status==='Done'?' done':''}" onclick="editTask('${esc(t.id)}')">
         <div class="task-check${t.status==='Done'?' checked':''}">${t.status==='Done'?'✓':''}</div>
         <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:#A3A3A3':''}">${esc(t.description)}</div>
@@ -516,18 +441,18 @@ function render(){
 // DOCUMENT EXCEL GENERATOR
 // ═══════════════════════════════════════════════════════
 async function generateDocExcel(docId){
-  const doc=state.documents.find(d=>d.id===docId);if(!doc)return;
-  const btn=event.target;btn.textContent='Generating...';btn.disabled=true;
+  const doc=state.documents.find(d=>d.id===docId); if(!doc)return;
+  const btn=event.target; btn.textContent='Generating...'; btn.disabled=true;
   try{
     const resp=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(doc)});
     if(!resp.ok)throw new Error('Generation failed');
     const blob=await resp.blob();
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download=(doc.docNumber||'document')+'_'+(doc.clientName||'').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20)+'.xlsx';
-    a.click();URL.revokeObjectURL(url);
+    a.href=url; a.download=(doc.docNumber||'document')+'_'+(doc.clientName||'').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20)+'.xlsx';
+    a.click(); URL.revokeObjectURL(url);
   }catch(e){alert('Error generating document: '+e.message)}
-  finally{btn.textContent='↓ Excel';btn.disabled=false}
+  finally{btn.textContent='↓ Excel'; btn.disabled=false}
 }
 
 // ═══════════════════════════════════════════════════════
@@ -539,8 +464,8 @@ function showModal(type,item){state.modal=type;state.editItem=item;renderModal()
 function closeModal(){state.modal=null;state.editItem=null;document.getElementById('modal-root')?.remove();render()}
 
 function renderModal(){
-  let el=document.getElementById('modal-root');if(!el){el=document.createElement('div');el.id='modal-root';document.body.appendChild(el)}
-  const it=state.editItem;if(!it){el.remove();return}
+  let el=document.getElementById('modal-root'); if(!el){el=document.createElement('div');el.id='modal-root';document.body.appendChild(el)}
+  const it=state.editItem; if(!it){el.remove();return}
   const pN=state.projects.map(p=>p.name);
   const sel=(l,v,opts,f)=>`<div class="form-group"><label class="form-label">${l}</label><select class="form-input" onchange="updateEdit('${f}',this.value)"><option value="">—</option>${opts.map(o=>`<option value="${esc(o)}"${v===o?' selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
   const inp=(l,v,f,t='text')=>`<div class="form-group"><label class="form-label">${l}</label><input class="form-input" type="${t}" value="${esc(v||'')}" onchange="updateEdit('${f}',${t==='number'?'Number(this.value)':'this.value'})" /></div>`;
@@ -549,9 +474,14 @@ function renderModal(){
   else if(state.modal==='expense') body=`<div class="form-grid">${sel('Project',it.project,pN,'project')}${sel('Category',it.category,LISTS.expCats,'category')}${inp('Description',it.description,'description')}${inp('Supplier',it.supplier,'supplier')}${inp('Date',it.date,'date','date')}${inp('Net Amount (€)',it.netAmount,'netAmount','number')}${inp('VAT (€)',it.vat,'vat','number')}${sel('Paid?',it.paid,LISTS.paid,'paid')}</div>`;
   else if(state.modal==='task') body=`<div class="form-grid">${sel('Project',it.project,pN,'project')}${sel('Category',it.category,LISTS.taskCats,'category')}<div class="form-group span-2"><label class="form-label">Description</label><input class="form-input" value="${esc(it.description||'')}" onchange="updateEdit('description',this.value)"/></div>${inp('Assigned',it.assigned,'assigned')}${inp('Due Date',it.dueDate,'dueDate','date')}${sel('Status',it.status,LISTS.taskStatuses,'status')}${sel('Priority',it.priority,LISTS.priorities,'priority')}</div>`;
   else if(state.modal==='revenue') body=`<div class="form-grid form-grid-4">${inp('Quotation #',it.quotationNum,'quotationNum')}${inp('Quote Date',it.quoteDate,'quoteDate','date')}${inp('Total Quoted (€)',it.totalQuoted,'totalQuoted','number')}<div></div>${inp('Deposit Inv',it.depositInv,'depositInv')}${inp('Deposit Date',it.depositDate,'depositDate','date')}${inp('Deposit (€)',it.depositAmt,'depositAmt','number')}${sel('Deposit Status',it.depositStatus,LISTS.payStatuses,'depositStatus')}${inp('2nd Pmt Inv',it.secondInv,'secondInv')}${inp('2nd Pmt Date',it.secondDate,'secondDate','date')}${inp('2nd Pmt (€)',it.secondAmt,'secondAmt','number')}${sel('2nd Pmt Status',it.secondStatus,LISTS.payStatuses,'secondStatus')}${inp('Final Inv',it.finalInv,'finalInv')}${inp('Final Date',it.finalDate,'finalDate','date')}${inp('Final (€)',it.finalAmt,'finalAmt','number')}${sel('Final Status',it.finalStatus,LISTS.payStatuses,'finalStatus')}</div>`;
+
+  // ─── DOCUMENT MODAL ───────────────────────────────────────────────────────
   else if(state.modal==='document'){
     const isInv=it.docType==='Invoice';
-    body=`<div style="margin-bottom:12px">${badge(it.docType)}</div>
+    body=`
+    <div style="margin-bottom:12px">${badge(it.docType)}</div>
+
+    <!-- Header fields -->
     <div class="form-grid">
       ${inp('Document #',it.docNumber,'docNumber')}${inp('Date (DD.MM.YYYY)',it.date,'date')}
       ${sel('Project',it.projectName,pN,'projectName')}${inp('Location',it.location,'location')}
@@ -559,25 +489,47 @@ function renderModal(){
       <div class="form-group span-2"><label class="form-label">Client Address (one line per row)</label><textarea class="form-input" rows="3" onchange="updateEdit('clientAddress',this.value)" style="resize:vertical">${esc(it.clientAddress||'')}</textarea></div>
       ${inp('Work Start Date',it.workStart,'workStart')}${inp('Work End Date',it.workEnd,'workEnd')}
     </div>
-    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">${isInv?'Line Items':'Scope of Work'}</h4>
-    ${isInv?`
-      <div id="items-list">${(it.items||[]).map((item,i)=>`<div class="form-grid" style="margin-bottom:6px;grid-template-columns:120px 1fr 60px 80px 30px">
-        <input class="form-input" placeholder="Item #" value="${esc(item.itemNumber)}" onchange="updateItemField(${i},'itemNumber',this.value)"/>
-        <input class="form-input" placeholder="Description" value="${esc(item.description)}" onchange="updateItemField(${i},'description',this.value)"/>
-        <input class="form-input" type="number" placeholder="Qty" value="${item.qty||''}" onchange="updateItemField(${i},'qty',Number(this.value))"/>
-        <input class="form-input" type="number" placeholder="Price" value="${item.price||''}" onchange="updateItemField(${i},'price',Number(this.value))"/>
-        <button class="btn btn-danger" style="padding:4px 8px" onclick="removeItem(${i})">✕</button>
-      </div>`).join('')}</div>
-      <button class="btn btn-ghost" style="margin-top:6px" onclick="addItem()">+ Add Item</button>
-    `:`
-      <div class="form-group"><label class="form-label">Scope lines (one per row — lines starting with "Phase" will be bold)</label><textarea class="form-input" rows="8" onchange="updateEdit('scopeText',this.value)" style="resize:vertical">${esc(it.scopeText||'')}</textarea></div>
-    `}
-    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">Totals & Payment</h4>
+
+    <!-- Line Items — shown for BOTH Invoice and Quotation -->
+    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">Line Items</h4>
+    <div id="items-list">
+      ${(it.items||[]).map((item,i)=>`
+        <div class="form-grid" style="margin-bottom:6px;grid-template-columns:120px 1fr 60px 80px 30px">
+          <input class="form-input" placeholder="Item #" value="${esc(item.itemNumber)}" onchange="updateItemField(${i},'itemNumber',this.value)"/>
+          <input class="form-input" placeholder="Description" value="${esc(item.description)}" onchange="updateItemField(${i},'description',this.value)"/>
+          <input class="form-input" type="number" placeholder="Qty" value="${item.qty||''}" onchange="updateItemField(${i},'qty',Number(this.value))"/>
+          <input class="form-input" type="number" placeholder="Price" value="${item.price||''}" onchange="updateItemField(${i},'price',Number(this.value))"/>
+          <button class="btn btn-danger" style="padding:4px 8px" onclick="removeItem(${i})">✕</button>
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-ghost" style="margin-top:6px" onclick="addItem()">+ Add Item</button>
+
+    <!-- Scope of Work — for Quotation only; shown for both but labelled accordingly -->
+    <h4 style="margin:16px 0 4px;font-size:13px;color:#737373">${isInv?'Notes / Scope':'Scope of Work'}</h4>
+    <div class="form-group" style="margin-bottom:4px">
+      <label class="form-label">${isInv?'Optional notes visible on invoice':'Your comments &amp; scope description — one line per row. Lines starting with "Phase" will appear bold.'}</label>
+      <textarea class="form-input" rows="6" onchange="updateEdit('scopeText',this.value)" style="resize:vertical">${esc(it.scopeText||'')}</textarea>
+    </div>
+
+    <!-- Additional Comments — always available -->
+    <h4 style="margin:16px 0 4px;font-size:13px;color:#737373">Additional Comments</h4>
+    <div class="form-group" style="margin-bottom:4px">
+      <label class="form-label">Optional — printed at the bottom of the document</label>
+      <textarea class="form-input" rows="3" onchange="updateEdit('additionalComments',this.value)" style="resize:vertical">${esc(it.additionalComments||'')}</textarea>
+    </div>
+
+    <!-- Totals & Payment -->
+    <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">Totals &amp; Payment</h4>
     <div class="form-grid">
       ${inp('Total excl. VAT',it.totalExclVat,'totalExclVat','number')}${inp('VAT % (0 for reverse charge)',it.vatPercent,'vatPercent','number')}${sel('Currency',it.currency||'€',['€','$'],'currency')}
     </div>
-    <div class="form-group" style="margin-top:8px"><label class="form-label">Payment terms (one per line)</label><textarea class="form-input" rows="3" onchange="updateEdit('paymentText',this.value)" style="resize:vertical">${esc(it.paymentText||'')}</textarea></div>`;
+    <div class="form-group" style="margin-top:8px">
+      <label class="form-label">Payment terms (one per line)</label>
+      <textarea class="form-input" rows="3" onchange="updateEdit('paymentText',this.value)" style="resize:vertical">${esc(it.paymentText||'')}</textarea>
+    </div>`;
   }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const titles={project:it._isNew?'New Project':'Edit Project',expense:it._isNew?'New Expense':'Edit Expense',task:it._isNew?'New Task':'Edit Task',revenue:'Edit Revenue',document:it._isNew?'New '+((it.docType)||'Document'):'Edit '+((it.docType)||'Document')};
   el.innerHTML=`<div class="modal-overlay" onclick="closeModal()"><div class="modal${state.modal==='revenue'||state.modal==='document'?' wide':''}" onclick="event.stopPropagation()"><div class="flex-between" style="margin-bottom:20px"><h3 class="modal-title" style="margin:0">${titles[state.modal]}</h3><button style="background:none;border:none;font-size:18px;color:#A3A3A3;cursor:pointer" onclick="closeModal()">✕</button></div>${body}<div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">${!it._isNew?'<button class="btn btn-danger" onclick="deleteItem()">Delete</button>':''}<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveItem()">Save</button></div></div></div>`;
 }
@@ -594,12 +546,34 @@ function editExpense(id){const e=state.expenses.find(x=>x.id===id);if(e)showModa
 function addTask(){showModal('task',{id:'T-'+Date.now(),project:'',description:'',category:'',assigned:'Viviane Z',dueDate:'',status:'To Do',priority:'Medium',_isNew:true})}
 function editTask(id){const t=state.tasks.find(x=>x.id===id);if(t)showModal('task',{...t})}
 function editRevenue(id){const r=state.revenue.find(x=>x.id===id);if(r)showModal('revenue',{...r})}
-function addDocument(type){showModal('document',{id:'DOC-'+Date.now(),docType:type,docNumber:'',date:'',clientName:'',clientAddress:'',clientVat:'',projectName:'',location:'',workStart:'',workEnd:'',currency:'€',items:[],scopeLines:[],scopeText:'',totalExclVat:0,vatPercent:0,paymentTerms:[],paymentText:'',_isNew:true})}
-function editDocument(id){const d=state.documents.find(x=>x.id===id);if(d)showModal('document',{...d,scopeText:(d.scopeLines||[]).join('\n'),paymentText:(d.paymentTerms||[]).join('\n')})}
+
+function addDocument(type){
+  showModal('document',{
+    id:'DOC-'+Date.now(),docType:type,docNumber:'',date:'',
+    clientName:'',clientAddress:'',clientVat:'',projectName:'',location:'',
+    workStart:'',workEnd:'',currency:'€',
+    items:[],
+    scopeLines:[],scopeText:'',
+    additionalComments:'',
+    totalExclVat:0,vatPercent:0,
+    paymentTerms:[],paymentText:'',
+    _isNew:true
+  });
+}
+
+function editDocument(id){
+  const d=state.documents.find(x=>x.id===id);
+  if(d)showModal('document',{
+    ...d,
+    scopeText:(d.scopeLines||[]).join('\n'),
+    paymentText:(d.paymentTerms||[]).join('\n'),
+    additionalComments:d.additionalComments||''
+  });
+}
 
 async function saveItem(){
-  const it=state.editItem;if(!it)return;
-  const clean={...it};delete clean._isNew;
+  const it=state.editItem; if(!it)return;
+  const clean={...it}; delete clean._isNew;
   if(state.modal==='project'){
     if(!it.name)return;
     if(!it._isNew){
@@ -619,6 +593,7 @@ async function saveItem(){
   else if(state.modal==='document'){
     if(clean.scopeText){clean.scopeLines=clean.scopeText.split('\n').filter(l=>l.trim());delete clean.scopeText}
     if(clean.paymentText){clean.paymentTerms=clean.paymentText.split('\n').filter(l=>l.trim());delete clean.paymentText}
+    // additionalComments saved as-is (plain string)
     clean.totalExclVat=Number(clean.totalExclVat)||0;
     clean.vatPercent=Number(clean.vatPercent)||0;
     await db.collection('documents').doc(clean.id).set(clean);
@@ -627,13 +602,16 @@ async function saveItem(){
 }
 
 async function deleteItem(){
-  const it=state.editItem;if(!it)return;
+  const it=state.editItem; if(!it)return;
   const col={project:'projects',expense:'expenses',task:'tasks',document:'documents'}[state.modal];
   if(col)await db.collection(col).doc(it.id).delete();
   closeModal();
 }
 
-document.addEventListener('click',e=>{if(state.notifOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.notifOpen=false;render()}if(state.exportOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.exportOpen=false;render()}});
+document.addEventListener('click',e=>{
+  if(state.notifOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.notifOpen=false;render()}
+  if(state.exportOpen&&!e.target.closest('.dropdown')&&!e.target.closest('.btn')){state.exportOpen=false;render()}
+});
 </script>
 </body>
 </html>
