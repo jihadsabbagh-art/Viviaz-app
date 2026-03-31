@@ -427,7 +427,8 @@ function render(){
     else{
       h+=`<div style="overflow-x:auto"><table><thead><tr>${['Type','Doc #','Date','Client','Project','Amount',''].map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>`;
       [...state.documents].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(d=>{
-        h+=`<tr><td>${badge(d.docType)}</td><td style="font-weight:600">${esc(d.docNumber)}</td><td style="color:#737373">${esc(d.date)}</td><td>${esc(d.clientName)}</td><td>${esc(d.projectName)}</td><td class="text-right" style="font-weight:600">${fmt(d.totalExclVat)}</td><td style="display:flex;gap:4px"><button class="btn btn-ghost" onclick="editDocument('${esc(d.id)}')">Edit</button><button class="btn btn-primary" onclick="generateDocExcel('${esc(d.id)}')">↓ Excel</button></td></tr>`;
+        const dTotal=(d.items&&d.items.length>0)?d.items.reduce((s,i)=>s+((i.qty||0)*(i.price||0)),0):(d.totalExclVat||0);
+        h+=`<tr><td>${badge(d.docType)}</td><td style="font-weight:600">${esc(d.docNumber)}</td><td style="color:#737373">${esc(d.date)}</td><td>${esc(d.clientName)}</td><td>${esc(d.projectName)}</td><td class="text-right" style="font-weight:600">${fmt(dTotal)}</td><td style="display:flex;gap:4px"><button class="btn btn-ghost" onclick="editDocument('${esc(d.id)}')">Edit</button><button class="btn btn-primary" onclick="generateDocExcel('${esc(d.id)}')">↓ Excel</button></td></tr>`;
       });
       h+=`</tbody></table></div>`;
     }
@@ -521,7 +522,7 @@ function renderModal(){
     <!-- Totals & Payment -->
     <h4 style="margin:16px 0 8px;font-size:13px;color:#737373">Totals &amp; Payment</h4>
     <div class="form-grid">
-      ${inp('Total excl. VAT',it.totalExclVat,'totalExclVat','number')}${inp('VAT % (0 for reverse charge)',it.vatPercent,'vatPercent','number')}${sel('Currency',it.currency||'€',['€','$'],'currency')}
+      <div class="form-group"><label class="form-label">Total excl. VAT (auto-computed from items)</label><input class="form-input" type="text" value="${esc((()=>{const items=it.items||[];if(items.length>0){const t=items.reduce((s,i)=>s+((i.qty||0)*(i.price||0)),0);return(it.currency||'€')+' '+Math.round(t).toLocaleString();}return it.totalExclVat?((it.currency||'€')+' '+Math.round(it.totalExclVat).toLocaleString()):'—';})())}" disabled style="background:#F9FAFB;color:#737373"/></div>${inp('VAT % (0 for reverse charge)',it.vatPercent,'vatPercent','number')}${sel('Currency',it.currency||'€',['€','$'],'currency')}
     </div>
     <div class="form-group" style="margin-top:8px">
       <label class="form-label">Payment terms (one per line)</label>
@@ -594,7 +595,7 @@ async function saveItem(){
     if(clean.scopeText){clean.scopeLines=clean.scopeText.split('\n').filter(l=>l.trim());delete clean.scopeText}
     if(clean.paymentText){clean.paymentTerms=clean.paymentText.split('\n').filter(l=>l.trim());delete clean.paymentText}
     // additionalComments saved as-is (plain string)
-    clean.totalExclVat=Number(clean.totalExclVat)||0;
+    clean.totalExclVat=clean.items&&clean.items.length>0?clean.items.reduce((s,i)=>s+((i.qty||0)*(i.price||0)),0):(Number(clean.totalExclVat)||0);
     clean.vatPercent=Number(clean.vatPercent)||0;
     await db.collection('documents').doc(clean.id).set(clean);
   }
