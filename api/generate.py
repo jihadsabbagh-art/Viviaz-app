@@ -201,7 +201,8 @@ def gen(data):
         W(r,6,'VAT',Ft(9,False,MID),align=AR)
         W(r,7,'Reverse Charge',Ft(8,False,LIGHT),align=AR,h=16); r+=1
 
-    # accent rule
+    # spacer + accent rule before total
+    rh(r,8); r+=1
     for c in range(6,8):
         ws.cell(row=r,column=c).border=Border(top=Side(style='thin',color=ACCENT))
     rh(r,3); r+=1
@@ -209,8 +210,8 @@ def gen(data):
     # Total row — light gray band
     for c in range(1,9): W(r,c,None,fill=Fill(HDR_BG))
     W(r,6,'TOTAL '+cur,Ft(11,True,INK),fill=Fill(HDR_BG),align=AR)
-    W(r,7,gr,Ft(12,True,INK),fill=Fill(HDR_BG),align=AR,nf=cf,h=26)
-    r+=1; rh(r,12); r+=1
+    W(r,7,gr,Ft(12,True,INK),fill=Fill(HDR_BG),align=AR,nf=cf,h=28)
+    r+=1; rh(r,18); r+=1
 
     # ── ADDITIONAL NOTES ──────────────────────────────────────────────────────
     if scope and len(scope)>0:
@@ -262,19 +263,15 @@ def gen(data):
     except Exception: pass
 
     rh(r,4); r+=1
-    for c in range(2,5):
-        ws.cell(row=r,column=c).border=Border(bottom=Side(style='thin',color=RULE))
-    for c in range(5,8):
-        ws.cell(row=r,column=c).border=Border(bottom=Side(style='thin',color=RULE))
     rh(r,20); r+=1
     W(r,2,CO['owner'],Ft(9,True,INK), align=AL,h=14)
     W(r,5,'_________________________',Ft(9,False,LIGHT),align=AL,mg=7)
     r+=1
     W(r,2,CO['name'], Ft(8,False,MID),align=AL,h=12)
-    r+=1; rh(r,14); r+=1   # generous spacer before footer
+    r+=1
 
-    # ── FOOTER — light gray, text lifted with proper padding ─────────────────
-    footer_start=r
+    # Footer pinned near bottom of A4
+    footer_start=max(r, 52)
     # 6 rows: top-pad, 4 content rows, bottom-pad
     for rr in range(r,r+6):
         for c in range(1,9): W(rr,c,None,fill=Fill(FOOT_BG))
