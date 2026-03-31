@@ -199,10 +199,10 @@ def gen(data):
         W(r,7,va,Ft(9,False,INK),align=AR,nf=cf,h=16); r+=1
     else:
         W(r,6,'VAT',Ft(9,False,MID),align=AR)
-        W(r,7,'Reverse Charge',Ft(8,False,LIGHT),align=AR,h=16); r+=1
+        W(r,7,'Reverse Charge',Ft(8,False,LIGHT),align=AR,h=20); r+=1
 
     # spacer + accent rule before total
-    rh(r,8); r+=1
+    rh(r,14); r+=1
     for c in range(6,8):
         ws.cell(row=r,column=c).border=Border(top=Side(style='thin',color=ACCENT))
     rh(r,3); r+=1
@@ -271,7 +271,16 @@ def gen(data):
     r+=1
 
     # Footer pinned near bottom of A4
-    footer_start=max(r, 52)
+    # Pin footer to page bottom: expand the last content row to fill remaining space
+    # A4 usable = ~791pt. We stretch row (r) to consume all remaining vertical space
+    footer_start = max(r, 58)
+    # Make the gap row very tall to push footer down
+    if footer_start > r:
+        for gap_r in range(r, footer_start):
+            ws.row_dimensions[gap_r].height = 15
+    else:
+        # Content is already long — just add a small gap
+        ws.row_dimensions[footer_start - 1].height = 20
     # 6 rows: top-pad, 4 content rows, bottom-pad
     for rr in range(r,r+6):
         for c in range(1,9): W(rr,c,None,fill=Fill(FOOT_BG))
