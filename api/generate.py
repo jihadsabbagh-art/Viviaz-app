@@ -270,40 +270,25 @@ def gen(data):
     W(r,2,CO['name'], Ft(8,False,MID),align=AL,h=12)
     r+=1
 
-    # Footer pinned near bottom of A4
-    # Pin footer to page bottom: expand the last content row to fill remaining space
-    # A4 usable = ~791pt. We stretch row (r) to consume all remaining vertical space
-    footer_start = max(r, 58)
-    # Make the gap row very tall to push footer down
-    if footer_start > r:
-        for gap_r in range(r, footer_start):
-            ws.row_dimensions[gap_r].height = 15
-    else:
-        # Content is already long — just add a small gap
-        ws.row_dimensions[footer_start - 1].height = 20
-    # 6 rows: top-pad, 4 content rows, bottom-pad
-    for rr in range(r,r+6):
-        for c in range(1,9): W(rr,c,None,fill=Fill(FOOT_BG))
-    rh(footer_start,  8)   # top padding — lifted from edge
-    rh(footer_start+1,12)
-    rh(footer_start+2,12)
-    rh(footer_start+3,12)
-    rh(footer_start+4,12)
-    rh(footer_start+5,8)   # bottom padding — text doesn't touch base
-
-    ff=Ft(7.5,False,LIGHT)
-    fa=Alignment(horizontal='center',vertical='center')
-    fl=[
+    # ── NATIVE PAGE FOOTER — always printed at the exact bottom of every page ──
+    # This is the only reliable way to pin footer to bottom regardless of content length
+    footer_lines = [
         CO['addr'],
         f"{CO['email']}  ·  {CO['phone']}",
         f"VAT {CO['vat']}  ·  EORI {CO['eori']}",
         f"{CO['bank']}  ·  IBAN {CO['iban']}  ·  BIC {CO['bic']}"
     ]
-    for i,line in enumerate(fl):
-        rr=footer_start+1+i
-        W(rr,1,line,ff,fill=Fill(FOOT_BG),align=fa,mg=8)
+    footer_text = "\n".join(footer_lines)
 
-    ws.print_area=f'A1:H{footer_start+6}'
+    # Set as Excel native page footer — prints at page bottom regardless of row count
+    ws.oddFooter.center.text = f"&7&K999999{footer_text}"
+    ws.page_setup.oddAndEvenPages = False
+
+    # Set page margins so footer has room to breathe (bottom margin in inches)
+    ws.page_margins.footer = 0.3   # footer distance from edge
+    ws.page_margins.bottom = 0.7   # content bottom margin — leaves space for footer text
+
+    ws.print_area = f'A1:H{r}'
 
     buf=io.BytesIO(); wb.save(buf); buf.seek(0)
     return buf.getvalue()
