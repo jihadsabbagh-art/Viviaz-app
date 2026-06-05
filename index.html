@@ -102,7 +102,11 @@ select.form-input{cursor:pointer}
 .flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .text-right{text-align:right}
 .loading{display:flex;align-items:center;justify-content:center;min-height:60vh;color:#A3A3A3;font-size:14px}
-@media(max-width:768px){.kpi-row{flex-direction:column}.form-grid,.form-grid-4{grid-template-columns:1fr}.card-grid{grid-template-columns:1fr}.modal{padding:16px}.content{padding:16px}.header{padding:14px 16px}.tabs{padding:6px 16px}}
+.rs-grid{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+.rs-drop{display:flex;align-items:center;justify-content:center;border:1.5px dashed #D4D4D4;border-radius:8px;padding:24px;color:#737373;font-size:13px;cursor:pointer;text-align:center;transition:border-color .15s,color .15s,background .15s}
+.rs-drop:hover{border-color:#111;color:#111;background:#FAFAFA}
+.rs-spin{display:inline-block;width:14px;height:14px;border:2px solid #E5E5E5;border-top-color:#111;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+@media(max-width:768px){.kpi-row{flex-direction:column}.form-grid,.form-grid-4{grid-template-columns:1fr}.card-grid{grid-template-columns:1fr}.modal{padding:16px}.content{padding:16px}.header{padding:14px 16px}.tabs{padding:6px 16px}.rs-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -330,6 +334,74 @@ function doExport(pf){
 }
 
 // ═══════════════════════════════════════════════════════
+// RENDER STUDIO
+// ═══════════════════════════════════════════════════════
+const RENDER_PROMPT_DEFAULT=`Photorealistically render this exact space from the sketch (first image). Preserve the precise proportions, depths, and positions of every cabinet, wall, and opening — do not resize, move, or deepen anything. Eye-level camera matching the drawing. Soft natural daylight. No extra props.
+
+Apply ONLY these materials (use the reference images):
+- Floor: "main flooring" — warm natural-oak herringbone parquet, medium golden-brown, matte.
+- Walls: "wall cream rough finish" — creamy off-white rough plaster / microcement, soft matte texture.
+- Kitchen cabinet fronts and tall panels: matte warm greige-taupe handleless slab cabinetry; upper glazed units have reeded / fluted glass set in slim bronze frames.
+- Countertop and backsplash: Calacatta Viola marble — white / cream ground with bold rust-brown and amber veining, polished.`;
+
+let RS={base:null,refs:[],prompt:RENDER_PROMPT_DEFAULT,result:null,resultMime:'image/png',busy:false,error:'',iterateText:''};
+
+// Read a file, downscale to keep payloads small, return {data,mimeType,preview}
+function rsLoadImage(file,maxDim=1280){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>reject(new Error('Could not read file'));
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Could not load image'));
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(Math.max(w,h)>maxDim){const s=maxDim/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+        const c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        const url=c.toDataURL('image/jpeg',0.9);
+        resolve({data:url.split(',')[1],mimeType:'image/jpeg',preview:url});
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function rsSetBase(input){const f=input.files&&input.files[0];if(!f)return;try{RS.base=await rsLoadImage(f);RS.error=''}catch(e){RS.error=e.message}render()}
+async function rsAddRefs(input){const files=[...(input.files||[])];try{for(const f of files)RS.refs.push(await rsLoadImage(f));RS.error=''}catch(e){RS.error=e.message}render()}
+function rsRemoveRef(i){RS.refs.splice(i,1);render()}
+async function rsCall(prompt,images){
+  const resp=await fetch('/api/render',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,images})});
+  let out; try{out=await resp.json()}catch(e){throw new Error('Server returned an unexpected response ('+resp.status+')')}
+  if(!resp.ok||out.error)throw new Error(out.error||('Request failed ('+resp.status+')'));
+  if(!out.image)throw new Error('No image returned.');
+  RS.result=out.image;RS.resultMime=out.mimeType||'image/png';
+}
+async function rsGenerate(){
+  const prompt=(RS.prompt||'').trim();
+  if(!RS.base){RS.error='Add a base sketch image first.';render();return}
+  if(!prompt){RS.error='Enter a prompt.';render();return}
+  const images=[{data:RS.base.data,mimeType:RS.base.mimeType},...RS.refs.map(r=>({data:r.data,mimeType:r.mimeType}))];
+  RS.busy=true;RS.error='';render();
+  try{await rsCall(prompt,images)}catch(e){RS.error=e.message}finally{RS.busy=false;render()}
+}
+async function rsIterate(){
+  const instr=(RS.iterateText||'').trim();
+  if(!RS.result){RS.error='Generate a render first.';render();return}
+  if(!instr){RS.error='Type a change to apply.';render();return}
+  // Feed the current render back as the base so the model refines instead of restarting
+  const images=[{data:RS.result,mimeType:RS.resultMime},...RS.refs.map(r=>({data:r.data,mimeType:r.mimeType}))];
+  RS.busy=true;RS.error='';render();
+  try{await rsCall(instr,images);RS.iterateText=''}catch(e){RS.error=e.message}finally{RS.busy=false;render()}
+}
+function rsDownload(){
+  if(!RS.result)return;
+  const a=document.createElement('a');
+  a.href='data:'+(RS.resultMime||'image/png')+';base64,'+RS.result;
+  a.download='viviaz-render.png';a.click();
+}
+
+// ═══════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════
 function render(){
@@ -353,7 +425,7 @@ function render(){
       <button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px;padding:5px 10px">Sign out</button>
     </div>
   </div>
-  <div class="tabs">${[['dashboard','Dashboard'],['projects','Projects',state.projects.length],['revenue','Revenue'],['expenses','Expenses',state.expenses.length],['pnl','P&L'],['tasks','Tasks',state.tasks.filter(t=>t.status!=='Done').length],['docs','Documents',state.documents?state.documents.length:0]].map(([k,l,c])=>'<button class="tab'+(state.tab===k?' active':'')+'" onclick="setTab(\''+k+'\')">'+l+(c!=null?'<span class="tab-count">'+c+'</span>':'')+'</button>').join('')}</div>
+  <div class="tabs">${[['dashboard','Dashboard'],['projects','Projects',state.projects.length],['revenue','Revenue'],['expenses','Expenses',state.expenses.length],['pnl','P&L'],['tasks','Tasks',state.tasks.filter(t=>t.status!=='Done').length],['docs','Documents',state.documents?state.documents.length:0],['render','Render Studio']].map(([k,l,c])=>'<button class="tab'+(state.tab===k?' active':'')+'" onclick="setTab(\''+k+'\')">'+l+(c!=null?'<span class="tab-count">'+c+'</span>':'')+'</button>').join('')}</div>
   <div class="content">`;
 
   if(state.tab==='dashboard'){
@@ -432,6 +504,42 @@ function render(){
       });
       h+=`</tbody></table></div>`;
     }
+  }
+
+  if(state.tab==='render'){
+    h+=`<div class="flex-between" style="margin-bottom:16px">
+      <div><h2 style="font-size:17px;font-weight:700">Render Studio</h2>
+      <div style="font-size:12px;color:#737373;margin-top:2px">Turn a sketch into a photorealistic render using material references. Powered by Gemini image generation.</div></div>
+    </div>
+    <div class="rs-grid">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card"><div class="form-label" style="margin-bottom:8px">Base image — sketch to render</div>
+          ${RS.base?`<img src="${RS.base.preview}" style="width:100%;border-radius:8px;border:1px solid #E5E5E5"/><button class="btn btn-ghost" style="margin-top:6px" onclick="RS.base=null;render()">Remove</button>`:`<label class="rs-drop">Click to upload the sketch<input type="file" accept="image/*" hidden onchange="rsSetBase(this)"></label>`}
+        </div>
+        <div class="card"><div class="form-label" style="margin-bottom:8px">Reference images — materials &amp; finishes</div>
+          ${RS.refs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${RS.refs.map((r,i)=>`<div style="position:relative"><img src="${r.preview}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #E5E5E5"/><button onclick="rsRemoveRef(${i})" title="Remove" style="position:absolute;top:-6px;right:-6px;background:#111;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer">&times;</button></div>`).join('')}</div>`:''}
+          <label class="rs-drop" style="padding:12px">+ Add reference images<input type="file" accept="image/*" multiple hidden onchange="rsAddRefs(this)"></label>
+        </div>
+        <div class="card"><div class="form-label" style="margin-bottom:8px">Prompt</div>
+          <textarea id="rs-prompt" class="form-input" style="min-height:210px;font-size:12px;line-height:1.5;resize:vertical" oninput="RS.prompt=this.value">${esc(RS.prompt)}</textarea>
+          <button class="btn btn-primary" style="width:100%;margin-top:10px" ${RS.busy?'disabled':''} onclick="rsGenerate()">${RS.busy?'<span class="rs-spin"></span>Rendering…':'Generate render'}</button>
+        </div>
+      </div>
+      <div class="card" style="min-height:420px;display:flex;flex-direction:column">`;
+    if(RS.error)h+=`<div class="alert-box" style="margin-bottom:12px"><div class="alert-title">⚠ ${esc(RS.error)}</div></div>`;
+    if(RS.busy)h+=`<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#737373;font-size:13px"><span class="rs-spin"></span>Generating render… this can take 10–30s</div>`;
+    else if(RS.result){
+      h+=`<img src="data:${RS.resultMime};base64,${RS.result}" style="width:100%;border-radius:8px;border:1px solid #E5E5E5"/>
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-primary" onclick="rsDownload()">↓ Download</button><button class="btn btn-ghost" onclick="RS.result=null;render()">Clear</button></div>
+        <div style="margin-top:14px;border-top:1px solid #F5F5F5;padding-top:12px">
+          <div class="form-label" style="margin-bottom:6px">Iterate — describe one change (keeps the current render)</div>
+          <input id="rs-iterate" class="form-input" placeholder="e.g. the left tall unit is too deep — make it shallow and flush to the wall" oninput="RS.iterateText=this.value" value="${esc(RS.iterateText||'')}"/>
+          <button class="btn btn-ghost" style="margin-top:8px" onclick="rsIterate()">Apply change</button>
+        </div>`;
+    } else {
+      h+=`<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#A3A3A3;text-align:center;font-size:13px;padding:20px">Your render will appear here.<br>Add a sketch + references, then press Generate.</div>`;
+    }
+    h+=`</div></div>`;
   }
 
   h+=`</div>`;
